@@ -333,27 +333,51 @@ function escapeHTML(text) {
 
 // Inicializar evento após carregamento da página
 document.addEventListener('DOMContentLoaded', function() {
+  // Verificar suporte para Web Serial API
   if (!isSerialSupported()) {
-    document.getElementById('serialNotSupported').style.display = 'block';
-    document.getElementById('serialControls').style.display = 'none';
-  } else {
-    document.getElementById('connectButton').addEventListener('click', function() {
-      if (port) {
-        disconnectFromSerialPort();
-      } else {
-        connectToSerialPort();
-      }
-    });
+    const notSupportedElement = document.getElementById('serialNotSupported');
+    const controlsElement = document.getElementById('serialControls');
     
-    document.getElementById('sendButton').addEventListener('click', sendSerialData);
-    document.getElementById('clearButton').addEventListener('click', clearSerialConsole);
+    if (notSupportedElement) {
+      notSupportedElement.style.display = 'block';
+    }
+    
+    if (controlsElement) {
+      controlsElement.style.display = 'none';
+    }
+  } else {
+    // Adicionar event listeners apenas se os elementos existirem
+    const connectButton = document.getElementById('connectButton');
+    const sendButton = document.getElementById('sendButton');
+    const clearButton = document.getElementById('clearButton');
+    const serialDataToSend = document.getElementById('serialDataToSend');
+    
+    if (connectButton) {
+      connectButton.addEventListener('click', function() {
+        if (port) {
+          disconnectFromSerialPort();
+        } else {
+          connectToSerialPort();
+        }
+      });
+    }
+    
+    if (sendButton) {
+      sendButton.addEventListener('click', sendSerialData);
+    }
+    
+    if (clearButton) {
+      clearButton.addEventListener('click', clearSerialConsole);
+    }
     
     // Permitir envio ao pressionar Enter no campo de texto
-    document.getElementById('serialDataToSend').addEventListener('keydown', function(event) {
-      if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        sendSerialData();
-      }
-    });
+    if (serialDataToSend) {
+      serialDataToSend.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          sendSerialData();
+        }
+      });
+    }
   }
 });

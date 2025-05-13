@@ -3,14 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' https://cdnjs.cloudflare.com data:; connect-src 'self' https://raw.githubusercontent.com https://services.cancerimagingarchive.net https://www.cancerimagingarchive.net https://www.osirix-viewer.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob: data: https://cdn.jsdelivr.net; style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' https://cdnjs.cloudflare.com data:; connect-src 'self' data: https://raw.githubusercontent.com https://services.cancerimagingarchive.net https://www.cancerimagingarchive.net https://www.osirix-viewer.com blob:;">
   <title>MVP de Interfaceamento Laboratorial Avançado</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="stylesheet" href="styles.css">
+  
+  <!-- Bibliotecas para DICOM -->
   <script src="https://unpkg.com/dicom-parser@1.8.21/dist/dicomParser.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/cornerstone-core@2.3.0/dist/cornerstone.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/cornerstone-web-image-loader@2.1.1/dist/cornerstoneWebImageLoader.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/cornerstone-tools@6.0.6/dist/cornerstoneTools.min.js"></script>
+  
+  <!-- Decodificadores JPEG para DICOM (ordem importante)-->
+  <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/arithmetic_decoder.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/util.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/jpx.js"></script>
+  <script src="js/dicom-decoders.js"></script>
+  
+  <!-- DWV para visualização DICOM -->
+  <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/dist/dwv.min.js"></script>
+  
+  <!-- Outras bibliotecas -->
   <script src="https://cdn.jsdelivr.net/npm/hl7parser@1.0.1/dist/hl7parser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
 </head>
@@ -535,13 +545,8 @@ L|1|N</textarea>
     </footer>
   </div>
 
-  <script src="js/utils.js"></script>
-  <script src="js/hl7.js"></script>
-  <script src="js/astm.js"></script>
-  <script src="js/dicom.js"></script>
-  <script src="js/csv-txt-xml.js"></script>
-  <script src="js/serial.js"></script>
   <script src="scripts.js"></script>
-
+  <script src="js/dicom.js"></script>
+  <script src="js/serial.js"></script>
 </body>
 </html>
