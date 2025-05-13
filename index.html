@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' https://cdnjs.cloudflare.com data:; connect-src 'self' https://raw.githubusercontent.com https://services.cancerimagingarchive.net https://www.cancerimagingarchive.net https://www.osirix-viewer.com;">
+  <title>MVP de Interfaceamento Laboratorial Avançado</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://unpkg.com/dicom-parser@1.8.21/dist/dicomParser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cornerstone-core@2.3.0/dist/cornerstone.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cornerstone-web-image-loader@2.1.1/dist/cornerstoneWebImageLoader.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cornerstone-tools@6.0.6/dist/cornerstoneTools.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hl7parser@1.0.1/dist/hl7parser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+</head>
+<body>
+  <header>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema claro/escuro">
+      <i class="fas fa-moon"></i>
+    </button>
+    <h1>MVP de Interfaceamento Laboratorial</h1>
+  </header>
+
+  <div class="container">
+    <nav>
+      <button onclick="showSection('intro')"><i class="fas fa-home"></i> Início</button>
+      <button onclick="showSection('hl7')"><i class="fas fa-hospital"></i> HL7</button>
+      <button onclick="showSection('astm')"><i class="fas fa-flask"></i> ASTM</button>
+      <button onclick="showSection('dicom')"><i class="fas fa-x-ray"></i> DICOM</button>
+      <button onclick="showSection('csv')"><i class="fas fa-table"></i> CSV</button>
+      <button onclick="showSection('txt')"><i class="fas fa-file-alt"></i> TXT</button>
+      <button onclick="showSection('xml')"><i class="fas fa-code"></i> XML</button>
+      <button onclick="showSection('comunicacao')"><i class="fas fa-exchange-alt"></i> Comunicação</button>
+    </nav>
+
+    <section id="intro" class="protocol-section active">
+      <h2>Bem-vindo ao MVP de Interfaceamento Laboratorial</h2>
+      <p class="protocol-explanation">
+        Esta aplicação é um Protótipo Mínimo Viável (MVP) projetado para demonstrar e testar a capacidade de interfaceamento
+        com diversos formatos de dados comuns em ambientes laboratoriais e de saúde. O objetivo é facilitar a integração
+        automática entre equipamentos de análise (analisadores laboratoriais, equipamentos de imagem) e os Sistemas de
+        Informação Laboratorial (LIS) ou Hospitalar (HIS).
+      </p>
+      <p>
+        No Brasil, a padronização de protocolos ainda é um desafio, especialmente no Sistema Único de Saúde (SUS).
+        Este MVP explora alguns dos formatos e protocolos mais utilizados, como HL7, ASTM, DICOM, e formatos genéricos
+        como CSV, TXT e XML.
+      </p>
+      <h3>Como usar:</h3>
+      <ol>
+        <li>Selecione um protocolo na barra de navegação acima.</li>
+        <li>Insira ou carregue os dados de exemplo no formato especificado.</li>
+        <li>Clique no botão "Analisar" ou "Parsear" para ver o resultado da interpretação dos dados.</li>
+        <li>Explore as explicações sobre cada protocolo e os modos de comunicação.</li>
+      </ol>
+    </section>
+
+    <section id="hl7" class="protocol-section">
+      <h2><i class="fas fa-hospital"></i> HL7 (Health Level Seven)</h2>
+      <p class="protocol-explanation">
+        HL7 é um conjunto de padrões para transferência de dados clínicos e administrativos entre aplicações de software
+        utilizadas por várias unidades de saúde. É amplamente utilizado para comunicação entre LIS, HIS, RIS e outros sistemas.
+        Mensagens HL7 são baseadas em segmentos, campos e componentes, usando caracteres delimitadores como '|', '^', '~', '\', '&'.
+      </p>
+      
+      <div class="input-section">
+        <div class="section-title"><i class="fas fa-edit"></i> Entrada de Dados</div>
+        <textarea id="hl7input" placeholder="Cole aqui uma mensagem HL7...">MSH|^~\&|LAB|HOSPITAL|LIS|LAB|202505121200||ORU^R01|123456|P|2.3
+PID|1||12345^^^HOSPITAL^MR||Silva^João||19800101|M
+OBR|1||54321|88304^Hemograma completo^LN|||202505121100
+OBX|1|NM|718-7^Hemoglobina^LN||13.5|g/dL|12.0-16.0|N||F</textarea>
+        <button class="action-button" onclick="parseHL7()"><i class="fas fa-sync"></i> Processar Dados</button>
+      </div>
+      
+      <div class="output-section">
+        <div class="section-title"><i class="fas fa-clipboard-list"></i> Resultado do Processamento</div>
+        
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('hl7-tech-tab', 'hl7-user-tab', this)"><i class="fas fa-code"></i> Visão Técnica</div>
+          <div class="tab" onclick="switchTab('hl7-user-tab', 'hl7-tech-tab', this)"><i class="fas fa-user-md"></i> Visão para Usuário Final</div>
+        </div>
+        
+        <div id="hl7-tech-tab" class="tab-content active">
+          <pre id="hl7output"></pre>
+        </div>
+        
+        <div id="hl7-user-tab" class="tab-content">
+          <div class="user-friendly-view">
+            <div class="report-header">
+              <div class="report-logo">Hospital Exemplo</div>
+              <div class="report-date" id="hl7-report-date">Data do Exame: </div>
+            </div>
+            
+            <div class="patient-card">
+              <div class="patient-header">
+                <div class="patient-name" id="hl7-patient-name">Nome do Paciente</div>
+                <div class="patient-id" id="hl7-patient-id">ID: </div>
+              </div>
+              
+              <div id="hl7-exams">
+                <h3 id="hl7-exam-name">Exame</h3>
+                <div class="exam-results" id="hl7-results">
+                  <!-- Os resultados serão inseridos aqui pelo JavaScript -->
+                </div>
+              </div>
+            </div>
+            <div class="security-badge"><i class="fas fa-shield-alt"></i> Dados Seguros</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="astm" class="protocol-section">
+      <h2><i class="fas fa-flask"></i> ASTM (American Society for Testing and Materials)</h2>
+      <p class="protocol-explanation">
+        ASTM E1394 é um padrão que especifica um protocolo para comunicação bidirecional entre instrumentos clínicos
+        e sistemas de computador. É frequentemente usado por analisadores laboratoriais para transmitir resultados de testes.
+        As mensagens ASTM são estruturadas em registros (Header, Patient, Order, Result, Comment, Terminator).
+      </p>
+      
+      <div class="input-section">
+        <div class="section-title"><i class="fas fa-edit"></i> Entrada de Dados</div>
+        <textarea id="astminput" placeholder="Cole aqui dados ASTM (linha a linha)...">H|\^&||PSWD|Roche Cobas||||||P|E1394-97|20250512
+P|1||123456||Silva^João||19800101|M
+O|1||^^^GLU|R|20250512|||||A||||SERUM
+R|1|^^^GLU|92|mg/dL|70^110|N||F||||20250512103055
+L|1|N</textarea>
+        <button class="action-button" onclick="parseASTM()"><i class="fas fa-sync"></i> Processar Dados</button>
+      </div>
+      
+      <div class="output-section">
+        <div class="section-title"><i class="fas fa-clipboard-list"></i> Resultado do Processamento</div>
+        
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('astm-tech-tab', 'astm-user-tab', this)"><i class="fas fa-code"></i> Visão Técnica</div>
+          <div class="tab" onclick="switchTab('astm-user-tab', 'astm-tech-tab', this)"><i class="fas fa-user-md"></i> Visão para Usuário Final</div>
+        </div>
+        
+        <div id="astm-tech-tab" class="tab-content active">
+          <pre id="astmoutput"></pre>
+        </div>
+        
+        <div id="astm-user-tab" class="tab-content">
+          <div class="user-friendly-view">
+            <div class="report-header">
+              <div class="report-logo" id="astm-device-name">Analisador</div>
+              <div class="report-date" id="astm-report-date">Data do Exame: </div>
+            </div>
+            
+            <div class="patient-card">
+              <div class="patient-header">
+                <div class="patient-name" id="astm-patient-name">Nome do Paciente</div>
+                <div class="patient-id" id="astm-patient-id">ID: </div>
+              </div>
+              
+              <div class="info-box">
+                <i class="fas fa-info-circle info-icon"></i>
+                <div>Amostra: <span id="astm-sample-type">-</span></div>
+              </div>
+              
+              <table class="result-table" id="astm-result-table">
+                <thead>
+                  <tr>
+                    <th>Exame</th>
+                    <th>Resultado</th>
+                    <th>Unidade</th>
+                    <th>Referência</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="astm-results">
+                  <!-- Resultados serão inseridos aqui pelo JavaScript -->
+                </tbody>
+              </table>
+            </div>
+            <div class="security-badge"><i class="fas fa-shield-alt"></i> Dados Seguros</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="dicom" class="protocol-section">
+      <h2><i class="fas fa-x-ray"></i> DICOM (Digital Imaging and Communications in Medicine)</h2>
+      <p class="protocol-explanation">
+        DICOM é o padrão internacional para imagens médicas e informações relacionadas. Usado por equipamentos como CT, MRI, Raios-X e Ultrassom. 
+        Arquivos DICOM (.dcm) contêm metadados do paciente, do estudo, da série e da imagem, além dos dados da imagem em si.
+      </p>
+      
+      <div class="input-section">
+        <div class="section-title"><i class="fas fa-edit"></i> Entrada de Dados</div>
+        
+        <div class="tabs dicom-source-tabs">
+          <div class="tab active" onclick="switchDicomSource('upload-tab', 'examples-tab', 'online-tab', this)">
+            <i class="fas fa-upload"></i> Upload de Arquivo
+          </div>
+          <div class="tab" onclick="switchDicomSource('examples-tab', 'upload-tab', 'online-tab', this)">
+            <i class="fas fa-folder-open"></i> Exemplos Locais
+          </div>
+          <div class="tab" onclick="switchDicomSource('online-tab', 'upload-tab', 'examples-tab', this)">
+            <i class="fas fa-cloud-download-alt"></i> Biblioteca Online
+          </div>
+        </div>
+        
+        <div id="upload-tab" class="dicom-source active">
+          <div class="file-drop-zone" id="dicomDropZone">
+            <i class="fas fa-cloud-upload-alt" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+            <p>Arraste e solte um arquivo DICOM aqui, ou clique para selecionar</p>
+            <input type="file" id="dicomFile" accept=".dcm" style="display: none;">
+          </div>
+        </div>
+        
+        <div id="examples-tab" class="dicom-source">
+          <div class="local-examples">
+            <div class="info-box">
+              <i class="fas fa-info-circle info-icon"></i>
+              <div>Selecione um arquivo DICOM de exemplo da pasta local:</div>
+            </div>
+            <select id="localDicomSelect" class="dicom-select">
+              <option value="">Selecione um arquivo...</option>
+              <!-- Será preenchido dinamicamente pelo JavaScript -->
+            </select>
+          </div>
+        </div>
+        
+        <div id="online-tab" class="dicom-source">
+          <div class="info-box">
+            <i class="fas fa-info-circle info-icon"></i>
+            <div>Baixe um arquivo DICOM da biblioteca online:</div>
+          </div>
+          <select id="onlineDicomSelect" class="dicom-select">
+            <option value="">Selecione um exemplo...</option>
+            <option value="CT">CT - Tomografia Computadorizada</option>
+            <option value="MR">MR - Ressonância Magnética</option>
+            <option value="XR">XR - Raios-X</option>
+            <option value="US">US - Ultrassom</option>
+            <option value="MG">MG - Mamografia</option>
+          </select>
+          <div id="onlineDicomStatus"></div>
+        </div>
+        
+        <button class="action-button" onclick="parseDicomFile()"><i class="fas fa-sync"></i> Processar Arquivo DICOM</button>
+      </div>
+      
+      <div class="output-section">
+        <div class="section-title"><i class="fas fa-clipboard-list"></i> Resultado do Processamento</div>
+        
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('dicom-tech-tab', 'dicom-user-tab', this)"><i class="fas fa-code"></i> Visão Técnica</div>
+          <div class="tab" onclick="switchTab('dicom-user-tab', 'dicom-tech-tab', this)"><i class="fas fa-user-md"></i> Visão para Usuário Final</div>
+        </div>
+        
+        <div id="dicom-tech-tab" class="tab-content active">
+          <pre id="dicomOutput"></pre>
+        </div>
+        
+        <div id="dicom-user-tab" class="tab-content">
+          <div class="user-friendly-view">
+            <div class="report-header">
+              <div class="report-logo" id="dicom-facility-name">Centro de Imagem</div>
+              <div class="report-date" id="dicom-study-date">Data do Exame: </div>
+            </div>
+            
+            <div class="patient-card">
+              <div class="patient-header">
+                <div class="patient-name" id="dicom-patient-name">Nome do Paciente</div>
+                <div class="patient-id" id="dicom-patient-id">ID: </div>
+              </div>
+              
+              <div class="info-box">
+                <i class="fas fa-info-circle info-icon"></i>
+                <div>Modalidade: <span id="dicom-modality">-</span></div>
+              </div>
+              
+              <div class="dicom-preview" id="dicom-image-container">
+                <div style="background-color: #e2e8f0; width: 300px; height: 300px; margin: 0 auto; display: flex; justify-content: center; align-items: center; border-radius: 8px;">
+                  <i class="fas fa-x-ray" style="font-size: 5rem; color: #64748b;"></i>
+                </div>
+                <p style="margin-top: 0.5rem; font-style: italic;">Visualização de imagem não disponível nesta demonstração</p>
+              </div>
+              
+              <div class="dicom-info" id="dicom-metadata">
+                <!-- Metadados DICOM serão inseridos aqui pelo JavaScript -->
+              </div>
+            </div>
+            <div class="security-badge"><i class="fas fa-shield-alt"></i> Dados Seguros</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="csv" class="protocol-section">
+      <h2><i class="fas fa-table"></i> CSV (Comma-Separated Values)</h2>
+      <p class="protocol-explanation">
+        CSV é um formato de texto simples onde os valores são separados por vírgulas (ou outros delimitadores como ponto e vírgula).
+        É um formato comum para exportação/importação de dados tabulares de planilhas e bancos de dados.
+        Pode ser usado para listas de trabalho (worklists) ou resultados simples.
+      </p>
+      
+      <div class="input-section">
+        <div class="section-title"><i class="fas fa-edit"></i> Entrada de Dados</div>
+        <textarea id="csvinput" placeholder="Cole aqui seus dados CSV...">ID,Nome,Exame,Resultado,Unidade,Referencia
+1,Maria Silva,Glicose,98,mg/dL,70-99
+2,Carlos Souza,Colesterol,205,mg/dL,<200
+3,Ana Oliveira,Triglicérides,180,mg/dL,<150
+4,Paulo Santos,HDL,45,mg/dL,>40</textarea>
+        
+        <div class="input-group">
+          <label for="csvDelimiter">Delimitador:</label>
+          <input type="text" id="csvDelimiter" value="," style="width: 50px;">
+          <button class="action-button" onclick="parseCSV()"><i class="fas fa-sync"></i> Processar Dados</button>
+        </div>
+      </div>
+      
+      <div class="output-section">
+        <div class="section-title"><i class="fas fa-clipboard-list"></i> Resultado do Processamento</div>
+        
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('csv-tech-tab', 'csv-user-tab', this)"><i class="fas fa-code"></i> Visão Técnica</div>
+          <div class="tab" onclick="switchTab('csv-user-tab', 'csv-tech-tab', this)"><i class="fas fa-user-md"></i> Visão para Usuário Final</div>
+        </div>
+        
+        <div id="csv-tech-tab" class="tab-content active">
+          <pre id="csvoutput"></pre>
+        </div>
+        
+        <div id="csv-user-tab" class="tab-content">
+          <div class="user-friendly-view">
+            <div class="report-header">
+              <div class="report-logo">Laboratório Central</div>
+              <div class="report-date">Data: <span id="csv-current-date"></span></div>
+            </div>
+            
+            <div id="csv-patients">
+              <!-- Os cartões de pacientes serão inseridos aqui pelo JavaScript -->
+            </div>
+            
+            <p style="margin-top: 1.5rem; font-style: italic; color: #64748b;">
+              * Valores de referência específicos para cada exame. Resultados fora do intervalo de referência estão destacados.
+            </p>
+            <div class="security-badge"><i class="fas fa-shield-alt"></i> Dados Seguros</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="txt" class="protocol-section">
+      <h2><i class="fas fa-file-alt"></i> TXT (Texto Plano)</h2>
+      <p class="protocol-explanation">
+        Arquivos de texto plano podem conter dados em formatos variados, desde listas simples até estruturas mais complexas
+        definidas por posições fixas (fixed-width) ou delimitadores customizados. A interpretação depende do layout específico.
+        Para este MVP, faremos um parsing genérico linha a linha ou com um delimitador simples.
+      </p>
+      
+      <div class="input-section">
+        <div class="section-title"><i class="fas fa-edit"></i> Entrada de Dados</div>
+        <textarea id="txtinput" placeholder="Cole aqui seus dados TXT...">ID|Nome|Exame|Resultado|Unidade|Referencia
+001|Ana Martins|TSH|2.5|uUI/mL|0.4-4.0
+002|Bruno Silva|T4L|1.2|ng/dL|0.8-1.8
+003|Carolina Pereira|Ferritina|215|ng/mL|10-120
+004|Diego Alves|Vitamina B12|155|pg/mL|>200</textarea>
+        
+        <div class="input-group">
+          <label for="txtDelimiter">Delimitador (opcional):</label>
+          <input type="text" id="txtDelimiter" value="|" style="width: 50px;">
+          <button class="action-button" onclick="parseTXT()"><i class="fas fa-sync"></i> Processar Dados</button>
+        </div>
+      </div>
+      
+      <div class="output-section">
+        <div class="section-title"><i class="fas fa-clipboard-list"></i> Resultado do Processamento</div>
+        
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('txt-tech-tab', 'txt-user-tab', this)"><i class="fas fa-code"></i> Visão Técnica</div>
+          <div class="tab" onclick="switchTab('txt-user-tab', 'txt-tech-tab', this)"><i class="fas fa-user-md"></i> Visão para Usuário Final</div>
+        </div>
+        
+        <div id="txt-tech-tab" class="tab-content active">
+          <pre id="txtoutput"></pre>
+        </div>
+        
+        <div id="txt-user-tab" class="tab-content">
+          <div class="user-friendly-view">
+            <div class="report-header">
+              <div class="report-logo">Laboratório Alpha</div>
+              <div class="report-date">Data: <span id="txt-current-date"></span></div>
+            </div>
+            
+            <div class="info-box">
+              <i class="fas fa-info-circle info-icon"></i>
+              <div>Resultados importados de arquivo texto delimitado</div>
+            </div>
+            
+            <table class="result-table">
+              <thead id="txt-table-header">
+                <!-- Cabeçalhos serão inseridos pelo JavaScript -->
+              </thead>
+              <tbody id="txt-results">
+                <!-- Resultados serão inseridos pelo JavaScript -->
+              </tbody>
+            </table>
+            
+            <div class="security-badge"><i class="fas fa-shield-alt"></i> Dados Seguros</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="xml" class="protocol-section">
+      <h2><i class="fas fa-code"></i> XML (Extensible Markup Language)</h2>
+      <p class="protocol-explanation">
+        XML é uma linguagem de marcação projetada para transportar e armazenar dados de forma legível tanto por humanos
+        quanto por máquinas. É flexível e amplamente utilizado para troca de dados na web e em sistemas corporativos.
+        Alguns sistemas de saúde podem usar XML para mensagens ou documentos clínicos (como CDA - Clinical Document Architecture).
+      </p>
+      
+      <div class="input-section">
+        <div class="section-title"><i class="fas fa-edit"></i> Entrada de Dados</div>
+        <textarea id="xmlinput" placeholder="Cole aqui seu código XML..."><resultados>
+  <paciente id="P001">
+    <nome>Fernanda Costa</nome>
+    <exame tipo="Hemograma">
+      <item nome="Hemoglobina" valor="14.1" unidade="g/dL" referencia="12.0-16.0"/>
+      <item nome="Hematocrito" valor="42" unidade="%" referencia="36-47"/>
+    </exame>
+  </paciente>
+  <paciente id="P002">
+    <nome>Ricardo Alves</nome>
+    <exame tipo="Bioquímica">
+      <item nome="Glicose" valor="105" unidade="mg/dL" referencia="70-99"/>
+    </exame>
+  </paciente>
+</resultados></textarea>
+        <button class="action-button" onclick="parseXML()"><i class="fas fa-sync"></i> Processar Dados</button>
+      </div>
+      
+      <div class="output-section">
+        <div class="section-title"><i class="fas fa-clipboard-list"></i> Resultado do Processamento</div>
+        
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('xml-tech-tab', 'xml-user-tab', this)"><i class="fas fa-code"></i> Visão Técnica</div>
+          <div class="tab" onclick="switchTab('xml-user-tab', 'xml-tech-tab', this)"><i class="fas fa-user-md"></i> Visão para Usuário Final</div>
+        </div>
+        
+        <div id="xml-tech-tab" class="tab-content active">
+          <pre id="xmloutput"></pre>
+        </div>
+        
+        <div id="xml-user-tab" class="tab-content">
+          <div class="user-friendly-view">
+            <div class="report-header">
+              <div class="report-logo">Sistema de Resultados</div>
+              <div class="report-date">Data: <span id="xml-current-date"></span></div>
+            </div>
+            
+            <div id="xml-patients">
+              <!-- Os cartões de pacientes serão inseridos aqui pelo JavaScript -->
+            </div>
+            
+            <div class="security-badge"><i class="fas fa-shield-alt"></i> Dados Seguros</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="comunicacao" class="protocol-section">
+      <h2><i class="fas fa-exchange-alt"></i> Modos de Comunicação no Interfaceamento</h2>
+      <p class="protocol-explanation">
+        A comunicação entre analisadores laboratoriais e o LIS/HIS pode ocorrer de diferentes formas, dependendo
+        das capacidades do equipamento e do sistema.
+      </p>
+      
+      <div class="connection-methods">
+        <div class="method-card">
+          <h3><i class="fas fa-usb"></i> Porta Serial (RS-232)</h3>
+          <p>Interface clássica e robusta, ainda usada por muitos analisadores legados. A Web Serial API permite a comunicação direta via navegador.</p>
+          
+          <div class="input-section">
+            <div class="section-title"><i class="fas fa-plug"></i> Conexão Serial</div>
+            <button class="action-button" onclick="connectSerial()"><i class="fas fa-link"></i> Conectar à Porta Serial</button>
+            <pre id="serialOutput" class="output-mini">A conexão serial requer permissão do usuário e navegador compatível (Chrome/Edge).</pre>
+            <div class="info-box">
+              <i class="fas fa-info-circle info-icon"></i>
+              <div>Conecte um analisador laboratorial ou dispositivo RS-232 (ou adaptador RS-232 para USB) para testar.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="method-card">
+          <h3><i class="fas fa-ethernet"></i> TCP/IP e Redes</h3>
+          <p>Analisadores modernos geralmente utilizam conexão Ethernet/LAN para transmissão de dados via TCP/IP.</p>
+          <p>A comunicação TCP/IP pode ser testada usando:</p>
+          <ul>
+            <li><strong>Sockets:</strong> Pode ser usado para envio/recebimento direto de mensagens HL7/ASTM.</li>
+            <li><strong>FTP/SFTP:</strong> Para transferência periódica de arquivos CSV/TXT/XML.</li>
+            <li><strong>Web Services (REST/SOAP):</strong> Para integração mais estruturada com sistemas modernos.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Unidirecional (Host Query ou Batch Download)</h3>
+      <p>
+        <strong>Host Query:</strong> O analisador consulta o LIS (host) para obter informações sobre uma amostra (ex: ID da amostra escaneado no equipamento). O LIS responde com os testes a serem realizados. Após a análise, o equipamento envia os resultados de volta.
+        <br>
+        <strong>Batch Download:</strong> O LIS envia uma lista de trabalho (worklist) para o analisador com todas as amostras e testes pendentes. O analisador processa e envia os resultados em lote.
+        <br>
+        <em>Neste modo, a comunicação tem um fluxo principal de dados.</em>
+      </p>
+      <h3>Bidirecional</h3>
+      <p>
+        Há uma troca de informações mais dinâmica e em tempo real entre o analisador e o LIS.
+        Isso pode incluir consultas de amostra, envio de resultados imediatos, status do equipamento, controle de qualidade, etc.
+        Protocolos como HL7 e ASTM são projetados para suportar comunicação bidirecional.
+      </p>
+      <h3>Manual</h3>
+      <p>
+        Os resultados são impressos pelo analisador e digitados manualmente no LIS. Propenso a erros e ineficiente,
+        mas ainda encontrado em alguns cenários. A importação de arquivos (CSV, TXT) pode ser considerada uma forma de
+        interfaceamento semi-manual para reduzir a digitação.
+      </p>
+      <h3>Semi-automático / Semi-manual</h3>
+      <p>
+        Envolve alguma intervenção manual no processo, como exportar um arquivo do equipamento e importá-lo no LIS,
+        ou usar um software intermediário (middleware) que facilita a comunicação mas pode requerer passos manuais.
+      </p>
+      <p>
+        <strong>Desafios:</strong> A falta de padronização, especialmente em sistemas legados ou de diferentes fabricantes,
+        torna o interfaceamento complexo. Soluções de middleware são frequentemente usadas para traduzir e rotear
+        mensagens entre os diversos sistemas e protocolos.
+      </p>
+    </section>
+
+    <footer>
+      MVP de Interfaceamento Laboratorial - Maio de 2025
+    </footer>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/hl7.js"></script>
+  <script src="js/astm.js"></script>
+  <script src="js/dicom.js"></script>
+  <script src="js/csv-txt-xml.js"></script>
+  <script src="js/serial.js"></script>
+  <script src="scripts.js"></script>
+
+</body>
+</html>
