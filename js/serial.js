@@ -40,16 +40,35 @@ async function connectToSerialPort() {
   try {
     // Solicitar porta serial
     port = await navigator.serial.requestPort();
+      // Atualizar UI para mostrar que estamos conectando
+    const connectionButton = document.querySelector('.connection-methods .action-button');
+    if (connectionButton) {
+      connectionButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando...';
+    }
     
-    // Atualizar UI para mostrar que estamos conectando
-    document.getElementById('connectButton').textContent = 'Conectando...';
+    // Configurações padrão se o formulário não existir
+    let baudRate = 9600;
+    let dataBits = 8;
+    let stopBits = 1;
+    let parity = 'none';
+    let flowControl = 'none';
     
-    // Obter configurações do formulário
-    const baudRate = parseInt(document.getElementById('baudRate').value) || 9600;
-    const dataBits = parseInt(document.getElementById('dataBits').value) || 8;
-    const stopBits = parseInt(document.getElementById('stopBits').value) || 1;
-    const parity = document.getElementById('parity').value || 'none';
-    const flowControl = document.getElementById('flowControl').value || 'none';
+    // Tentar obter do formulário, se existir
+    if (document.getElementById('baudRate')) {
+      baudRate = parseInt(document.getElementById('baudRate').value) || 9600;
+    }
+    if (document.getElementById('dataBits')) {
+      dataBits = parseInt(document.getElementById('dataBits').value) || 8;
+    }
+    if (document.getElementById('stopBits')) {
+      stopBits = parseInt(document.getElementById('stopBits').value) || 1;
+    }
+    if (document.getElementById('parity')) {
+      parity = document.getElementById('parity').value || 'none';
+    }
+    if (document.getElementById('flowControl')) {
+      flowControl = document.getElementById('flowControl').value || 'none';
+    }
     
     // Salvar configurações
     serialConfig = { baudRate, dataBits, stopBits, parity, flowControl };
@@ -59,17 +78,34 @@ async function connectToSerialPort() {
     
     // Preparar leitura/escrita
     setupSerialReaderWriter();
+      // Atualizar UI
+    const connectButton = document.getElementById('connectButton');
+    if (connectButton) {
+      connectButton.textContent = 'Desconectar';
+      connectButton.className = 'button disconnect';
+    }
     
-    // Atualizar UI
-    document.getElementById('connectButton').textContent = 'Desconectar';
-    document.getElementById('connectButton').className = 'button disconnect';
-    document.getElementById('serialStatus').textContent = 'Conectado';
-    document.getElementById('serialStatus').className = 'connected';
-    document.getElementById('serialConfig').disabled = true;
+    const serialStatus = document.getElementById('serialStatus');
+    if (serialStatus) {
+      serialStatus.textContent = 'Conectado';
+      serialStatus.className = 'connected';
+    }
+    
+    const serialConfig = document.getElementById('serialConfig');
+    if (serialConfig) {
+      serialConfig.disabled = true;
+    }
     
     // Habilitar área de envio
-    document.getElementById('sendButton').disabled = false;
-    document.getElementById('serialDataToSend').disabled = false;
+    const sendButton = document.getElementById('sendButton');
+    if (sendButton) {
+      sendButton.disabled = false;
+    }
+    
+    const serialDataToSend = document.getElementById('serialDataToSend');
+    if (serialDataToSend) {
+      serialDataToSend.disabled = false;
+    }
     
     showNotification('Conexão estabelecida com sucesso!', 'success');
     
@@ -86,9 +122,11 @@ async function connectToSerialPort() {
     } else {
       showNotification(`Erro ao conectar: ${error.message}`, 'error');
     }
-    
-    document.getElementById('connectButton').textContent = 'Conectar';
-    document.getElementById('connectButton').className = 'button connect';
+      const connectButton = document.getElementById('connectButton');
+    if (connectButton) {
+      connectButton.textContent = 'Conectar';
+      connectButton.className = 'button connect';
+    }
     port = null;
   }
 }
@@ -121,17 +159,33 @@ async function disconnectFromSerialPort(closePort = true) {
     if (closePort && port.readable) {
       await port.close();
     }
+      // Atualizar UI
+    const connectButton = document.getElementById('connectButton');
+    if (connectButton) {
+      connectButton.textContent = 'Conectar';
+      connectButton.className = 'button connect';
+    }
     
-    // Atualizar UI
-    document.getElementById('connectButton').textContent = 'Conectar';
-    document.getElementById('connectButton').className = 'button connect';
-    document.getElementById('serialStatus').textContent = 'Desconectado';
-    document.getElementById('serialStatus').className = 'disconnected';
-    document.getElementById('serialConfig').disabled = false;
+    const serialStatus = document.getElementById('serialStatus');
+    if (serialStatus) {
+      serialStatus.textContent = 'Desconectado';
+      serialStatus.className = 'disconnected';
+    }
     
-    // Desabilitar área de envio
-    document.getElementById('sendButton').disabled = true;
-    document.getElementById('serialDataToSend').disabled = true;
+    const serialConfig = document.getElementById('serialConfig');
+    if (serialConfig) {
+      serialConfig.disabled = false;
+    }
+      // Desabilitar área de envio
+    const sendButton = document.getElementById('sendButton');
+    if (sendButton) {
+      sendButton.disabled = true;
+    }
+    
+    const serialDataToSend = document.getElementById('serialDataToSend');
+    if (serialDataToSend) {
+      serialDataToSend.disabled = true;
+    }
     
     showNotification('Desconectado da porta serial.', 'info');
   } catch (error) {
@@ -201,8 +255,9 @@ async function readSerialData(textDecoder) {
 }
 
 // Adicionar dados recebidos ao console
-function addReceivedSerialData(text) {
-  const serialConsole = document.getElementById('serialConsole');
+function addReceivedSerialData(text) {  const serialConsole = document.getElementById('serialConsole');
+  if (!serialConsole) return;
+  
   const shouldAutoscroll = serialConsole.scrollTop + serialConsole.clientHeight >= serialConsole.scrollHeight - 5;
   
   // Adicionar timestamp e dados
@@ -381,3 +436,32 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 });
+
+// Função de interface para conectar à porta serial
+async function connectSerial() {
+  try {
+    await connectToSerialPort();
+    
+    // Verificar se a função startSerialMonitoring existe
+    if (typeof startSerialMonitoring === 'function') {
+      startSerialMonitoring();
+    } else {
+      // Atualizar a interface com o status da conexão
+      const serialOutput = document.getElementById('serialOutput');
+      if (serialOutput) {
+        serialOutput.textContent = 'Conectado à porta serial! Aguardando dados...';
+        serialOutput.className = 'output-mini success';
+      }
+    }
+  } catch (error) {
+    console.error("Erro na conexão serial:", error);
+    showNotification('Erro ao conectar: ' + error.message, 'error');
+    
+    // Atualizar UI em caso de erro
+    const serialOutput = document.getElementById('serialOutput');
+    if (serialOutput) {
+      serialOutput.textContent = 'Erro na conexão: ' + error.message;
+      serialOutput.className = 'output-mini error';
+    }
+  }
+}

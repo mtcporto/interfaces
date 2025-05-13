@@ -7,18 +7,19 @@
   <title>MVP de Interfaceamento Laboratorial Avançado</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="stylesheet" href="styles.css">
-  
-  <!-- Bibliotecas para DICOM -->
-  <script src="https://unpkg.com/dicom-parser@1.8.21/dist/dicomParser.min.js"></script>
-  
-  <!-- Decodificadores JPEG para DICOM (ordem importante)-->
-  <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/arithmetic_decoder.js"></script>
+  <!-- Decodificadores JPEG para DICOM (ordem importante)-->  <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/arithmetic_decoder.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/util.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/jpx.js"></script>
-  <script src="js/dicom-decoders.js"></script>
   
-  <!-- DWV para visualização DICOM -->
+  <!-- DWV para visualização DICOM (fallback) -->
   <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/dist/dwv.min.js"></script>
+    <!-- Cornerstone (OHIF) para visualização DICOM avançada -->
+  <script src="https://unpkg.com/cornerstone-core@2.6.1/dist/cornerstone.min.js"></script>
+  <script src="https://unpkg.com/cornerstone-math@0.1.10/dist/cornerstoneMath.min.js"></script>
+  <script src="https://unpkg.com/hammer.js@2.0.8/hammer.min.js"></script>
+  <script src="https://unpkg.com/cornerstone-tools@6.0.8/dist/cornerstoneTools.min.js"></script>
+  <script src="https://unpkg.com/dicom-parser@1.8.21/dist/dicomParser.min.js"></script>
+  <script src="https://unpkg.com/cornerstone-wado-image-loader@4.13.2/dist/cornerstoneWADOImageLoader.bundle.min.js"></script>
   
   <!-- Outras bibliotecas -->
   <script src="https://cdn.jsdelivr.net/npm/hl7parser@1.0.1/dist/hl7parser.min.js"></script>
@@ -281,12 +282,8 @@ L|1|N</textarea>
                 <i class="fas fa-info-circle info-icon"></i>
                 <div>Modalidade: <span id="dicom-modality">-</span></div>
               </div>
-              
-              <div class="dicom-preview" id="dicom-image-container">
-                <div style="background-color: #e2e8f0; width: 300px; height: 300px; margin: 0 auto; display: flex; justify-content: center; align-items: center; border-radius: 8px;">
-                  <i class="fas fa-x-ray" style="font-size: 5rem; color: #64748b;"></i>
-                </div>
-                <p style="margin-top: 0.5rem; font-style: italic;">Visualização de imagem não disponível nesta demonstração</p>
+                <div class="dicom-preview" id="dicom-image-container">
+                <!-- Canvas para visualização DICOM será injetado aqui pelo DWV -->
               </div>
               
               <div class="dicom-info" id="dicom-metadata">
@@ -542,11 +539,16 @@ L|1|N</textarea>
 
     <footer>
       MVP de Interfaceamento Laboratorial - Maio de 2025
-    </footer>
-  </div>
-
-  <script src="scripts.js"></script>
+    </footer>  </div>  <!-- Scripts de funcionamento -->
+  <script src="js/utils.js"></script>
+  <script src="js/ohif-viewer.js"></script>
   <script src="js/dicom.js"></script>
+  <script src="js/hl7.js"></script>
+  <script src="js/astm.js"></script>
+  <script src="js/csv.js"></script>
+  <script src="js/txt.js"></script>
+  <script src="js/xml.js"></script>
   <script src="js/serial.js"></script>
+  <script src="scripts.js"></script>
 </body>
 </html>

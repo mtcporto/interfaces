@@ -38,11 +38,12 @@ function parseASTMRawData(rawData) {
   // Remover espaços extras e dividir por delimitador de registro (CR ou CRLF)
   const records = rawData.trim().split(/\r\n|\r|\n/);
   
+  // Criar estrutura compatível com updateASTMUserView
   let result = {
-    header: null,
-    patient: null,
-    order: null,
-    results: []
+    H: null,
+    P: null,
+    O: null,
+    R: []
   };
   
   records.forEach(record => {
@@ -52,18 +53,22 @@ function parseASTMRawData(rawData) {
     // Identificar o tipo de registro pela primeira letra
     const recordType = record.charAt(0);
     
+    // Dividir o registro em campos usando a barra vertical como delimitador
+    const fields = record.split('|');
+    
     switch (recordType) {
       case 'H': // Header Record
-        result.header = parseASTMHeaderRecord(record);
+        result.H = [fields]; // Armazenar como array para compatibilidade
         break;
       case 'P': // Patient Record
-        result.patient = parseASTMPatientRecord(record);
+        result.P = [fields]; // Armazenar como array para compatibilidade
         break;
       case 'O': // Order Record
-        result.order = parseASTMOrderRecord(record);
+        result.O = [fields]; // Armazenar como array para compatibilidade
         break;
       case 'R': // Result Record
-        result.results.push(parseASTMResultRecord(record));
+        result.R = result.R || []; 
+        result.R.push(fields); // Adicionar ao array de resultados
         break;
       case 'L': // Terminator Record
         // Não precisa de processamento adicional
@@ -76,81 +81,28 @@ function parseASTMRawData(rawData) {
   return result;
 }
 
-// Parser para Header Record
-function parseASTMHeaderRecord(record) {
-  // Formato: H|\\^&|||NOME_EQUIPAMENTO|||||||||AAAAMMDDHHMMSS
-  const parts = record.split('|');
+// Função auxiliar para formatar data ASTM
+function parseASTMDate(dateStr) {
+  if (!dateStr || dateStr.length < 8) return '';
   
-  return {
-    type: 'header',
-    delimiters: parts[1] || '',
-    senderId: parts[2] || '',
-    receiverId: parts[3] || '',
-    equipmentName: parts[4] || '',
-    timestamp: parseASTMDate(parts[13] || '')
-  };
+  // Formatar data AAAAMMDD para DD/MM/AAAA
+  const year = dateStr.substring(0, 4);
+  const month = dateStr.substring(4, 6);
+  const day = dateStr.substring(6, 8);
+  
+  return `${day}/${month}/${year}`;
 }
 
-// Parser para Patient Record
-function parseASTMPatientRecord(record) {
-  // Formato: P|1||PATIENT_ID||NAME^SURNAME||BIRTH_DATE|SEX||||||||||||||||||
-  const parts = record.split('|');
-  
-  // Formatar nome e sobrenome do paciente (se disponível)
-  let name = parts[5] || '';
-  let formattedName = name;
-  
-  if (name.includes('^')) {
-    const nameParts = name.split('^');
-    formattedName = nameParts[1] + ' ' + nameParts[0]; // Nome Sobrenome
+// Função para traduzir código de status ASTM
+function translateASTMStatus(statusCode) {
+  switch (statusCode.toUpperCase()) {
+    case 'F': return 'Final';
+    case 'P': return 'Pendente';
+    case 'R': return 'Revisado';
+    case 'C': return 'Corrigido';
+    case 'X': return 'Cancelado';
+    default: return statusCode || 'Não especificado';
   }
-  
-  return {
-    type: 'patient',
-    sequenceNum: parts[1] || '',
-    patientId: parts[3] || '',
-    patientName: formattedName,
-    rawName: name,
-    dateOfBirth: parseASTMDate(parts[7] || ''),
-    sex: parts[8] || ''
-  };
-}
-
-// Parser para Order Record
-function parseASTMOrderRecord(record) {
-  // Formato: O|1||SAMPLE_ID||TEST_CODES|||COLLECTION_DATE|||||||||||||||||
-  const parts = record.split('|');
-  
-  return {
-    type: 'order',
-    sequenceNum: parts[1] || '',
-    specimenId: parts[3] || '',
-    testCodes: parts[4] || '',
-    priority: parts[5] || '',
-    collectionDate: parseASTMDate(parts[8] || '')
-  };
-}
-
-// Parser para Result Record
-function parseASTMResultRecord(record) {
-  // Formato: R|1|^^^TEST_CODE|RESULT|UNITS|REFERENCE_RANGE|STATUS||TIMESTAMP|||||
-  const parts = record.split('|');
-  
-  let testCode = parts[2] || '';
-  if (testCode.startsWith('^^^')) {
-    testCode = testCode.substring(3);
-  }
-  
-  return {
-    type: 'result',
-    sequenceNum: parts[1] || '',
-    testCode: testCode,
-    result: parts[3] || '',
-    units: parts[4] || '',
-    referenceRange: parts[5] || '',
-    status: translateASTMStatus(parts[6] || ''),
-    timestamp: parseASTMDate(parts[8] || '')
-  };
 }
 
 // Função auxiliar para analisar datas ASTM
@@ -184,61 +136,114 @@ function translateASTMStatus(statusCode) {
 }
 
 // Função para atualizar a visão do usuário final dos dados ASTM
-function updateASTMUserView(astmData) {
-  // Obter elementos do DOM
-  const patientNameEl = document.getElementById('astm-patient-name');
-  const patientIdEl = document.getElementById('astm-patient-id');
-  const examNameEl = document.getElementById('astm-exam-name');
-  const reportDateEl = document.getElementById('astm-report-date');
-  const resultsContainerEl = document.getElementById('astm-results');
-  
-  if (!patientNameEl || !resultsContainerEl) return;
-  
-  // Limpar resultados anteriores
-  resultsContainerEl.innerHTML = '';
-  
-  // Dados do paciente
-  if (astmData.patient) {
-    patientNameEl.textContent = astmData.patient.patientName || 'Nome não informado';
-    patientIdEl.textContent = 'ID: ' + (astmData.patient.patientId || 'Não informado');
-  }
-  
-  // Nome do exame (baseado no cabeçalho ou no pedido)
-  let examName = '';
-  if (astmData.header && astmData.header.equipmentName) {
-    examName = astmData.header.equipmentName;
-  } else if (astmData.order && astmData.order.testCodes) {
-    examName = 'Análise ' + astmData.order.testCodes;
-  }
-  examNameEl.textContent = examName || 'Resultado ASTM';
-  
-  // Data do exame
-  let examDate = '';
-  if (astmData.order && astmData.order.collectionDate) {
-    examDate = astmData.order.collectionDate;
-  } else if (astmData.header && astmData.header.timestamp) {
-    examDate = astmData.header.timestamp;
-  }
-  reportDateEl.textContent = 'Data do Exame: ' + (examDate || 'Não informada');
-  
-  // Resultados
-  if (astmData.results && astmData.results.length > 0) {
-    astmData.results.forEach(result => {
-      const isAbnormal = isAbnormalValue(result.result, result.referenceRange);
+  // Função para atualizar a visão de usuário do ASTM
+  function updateASTMUserView(parsedAST) {
+    // Extrair informações do cabeçalho (H)
+    let deviceName = 'Analisador';
+    let examDate = '';
+    
+    if (parsedAST.H && parsedAST.H[0]) {
+      deviceName = parsedAST.H[0][4] || 'Analisador';
       
-      const resultItem = document.createElement('div');
-      resultItem.className = 'exam-result-item' + (isAbnormal ? ' abnormal' : '');
+      // Data geralmente está no campo 12 (formato AAAAMMDD)
+      if (parsedAST.H[0][12]) {
+        const rawDate = parsedAST.H[0][12];
+        if (rawDate.length >= 8) {
+          examDate = rawDate.substring(6, 8) + '/' + 
+                     rawDate.substring(4, 6) + '/' + 
+                     rawDate.substring(0, 4);
+        }
+      }
+    }
+    
+    document.getElementById('astm-device-name').textContent = deviceName;
+    document.getElementById('astm-report-date').textContent = 'Data do Exame: ' + examDate;
+    
+    // Extrair dados do paciente (P)
+    let patientName = 'Não identificado';
+    let patientId = '';
+    
+    if (parsedAST.P && parsedAST.P[0]) {
+      // ID do paciente geralmente está no campo 3
+      patientId = parsedAST.P[0][3] || '';
       
-      resultItem.innerHTML = `
-        <div class="result-name">${result.testCode}</div>
-        <div class="result-value">${result.result} ${result.units}</div>
-        <div class="result-reference">Referência: ${result.referenceRange || 'N/A'}</div>
-        <div class="result-status">Status: ${result.status || 'N/A'}</div>
-      `;
-      
-      resultsContainerEl.appendChild(resultItem);
-    });
-  } else {
-    resultsContainerEl.innerHTML = '<div class="info-message">Nenhum resultado encontrado no arquivo ASTM.</div>';
+      // Nome do paciente geralmente está no campo 5
+      if (parsedAST.P[0][5]) {
+        const nameParts = parsedAST.P[0][5].split('^');
+        if (nameParts.length > 1) {
+          patientName = nameParts[1] + ' ' + nameParts[0]; // Nome Sobrenome
+        } else {
+          patientName = parsedAST.P[0][5];
+        }
+      }
+    }
+    
+    document.getElementById('astm-patient-name').textContent = patientName;
+    document.getElementById('astm-patient-id').textContent = 'ID: ' + patientId;
+    
+    // Extrair tipo de amostra
+    let sampleType = 'Não especificado';
+    if (parsedAST.O && parsedAST.O[0] && parsedAST.O[0][13]) {
+      sampleType = parsedAST.O[0][13];
+    }
+    document.getElementById('astm-sample-type').textContent = sampleType;
+    
+    // Processar resultados (R)
+    const resultsBody = document.getElementById('astm-results');
+    if (!resultsBody) return;
+    
+    resultsBody.innerHTML = ''; // Limpar resultados anteriores
+    
+    if (parsedAST.R && parsedAST.R.length > 0) {
+      parsedAST.R.forEach(result => {
+        // Pegar detalhes do teste
+        let testCode = '';
+        if (result[2]) {
+          const testParts = result[2].split('^');
+          testCode = testParts[testParts.length - 1] || result[2];
+        }
+        
+        const value = result[3] || '';
+        const unit = result[4] || '';
+        
+        // Processando intervalo de referência
+        let refRange = '';
+        if (result[5]) {
+          const rangeParts = result[5].split('^');
+          refRange = rangeParts.join('-');
+        }
+        
+        // Avaliar status de anormalidade
+        const abnormalFlag = result[6] || '';
+        let status = 'Normal';
+        let statusClass = 'normal';
+        
+        if (abnormalFlag === 'A' || abnormalFlag === 'H') {
+          status = 'Alto';
+          statusClass = 'abnormal';
+        } else if (abnormalFlag === 'L') {
+          status = 'Baixo';
+          statusClass = 'abnormal';
+        }
+        
+        // Adicionar linha à tabela
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${testCode}</td>
+          <td class="${statusClass}">${value}</td>
+          <td>${unit}</td>
+          <td>${refRange}</td>
+          <td class="${statusClass}">${status}</td>
+        `;
+        
+        resultsBody.appendChild(row);
+      });
+    }
+    
+    // Se não houver resultados, mostrar mensagem
+    if (!parsedAST.R || parsedAST.R.length === 0) {
+      const row = document.createElement('tr');
+      row.innerHTML = '<td colspan="5">Não há resultados disponíveis</td>';
+      resultsBody.appendChild(row);
+    }
   }
-}

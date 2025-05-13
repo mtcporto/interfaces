@@ -569,7 +569,7 @@
   .report-logo {
     font-weight: 700;
     font-size: 1.2rem;
-    color: var(--primary-color);
+    color: var (--primary-color);
   }
 
   .report-date {
@@ -878,4 +878,105 @@
 
   .dicom-btn:hover {
     background-color: var(--primary-dark);
+  }
+  /* Estilos para visualização de imagem DICOM */
+  .dicom-preview {
+    width: 100%;
+    height: 400px;
+    background-color: #000;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    margin: 1rem auto;
+    border: 1px solid var(--border-light);
+  }
+  
+  body.dark-mode .dicom-preview {
+    border-color: var(--border-dark);
+  }
+  
+  /* Controles DICOM */
+  .dicom-controls {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 20px;
+    padding: 5px 10px;
+    display: flex;
+    gap: 5px;
+    z-index: 100;
+  }
+  
+  .dicom-btn {
+    background-color: transparent;
+    border: none;
+    color: white;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .dicom-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  .dicom-btn.active {
+    background-color: rgba(52, 152, 219, 0.5);
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.8);
+  }
+  
+  .dicom-btn.disabled,
+  .dicom-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .dicom-image-controls {
+    position: absolute;
+    bottom: 10px;
+    left: 0;
+    right: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 8px;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    z-index: 10;
+  }
+
+  /* Tabela de metadados DICOM */
+  .dicom-metadata-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .dicom-metadata-table th {
+    text-align: left;
+    padding: 8px;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-weight: 600;
+    width: 40%;
+  }
+  
+  .dicom-metadata-table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--border-light);
+  }
+  
+  body.dark-mode .dicom-metadata-table th {
+    background-color: var(--bg-dark-secondary);
+  }
+  
+  body.dark-mode .dicom-metadata-table td {
+    border-bottom-color: var(--border-dark);
   }
