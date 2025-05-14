@@ -9,7 +9,6 @@ function parseHL7() {
   
   try {
     const input = document.getElementById('hl7input').value;
-    console.log("HL7 input raw value:", input);
     
     if (!input || !input.trim()) {
       outputElement.textContent = 'Entrada HL7 está vazia.';
@@ -19,26 +18,21 @@ function parseHL7() {
     
     // Parser HL7 personalizado - melhorado e robusto com tratamento de erros
     function parseHL7Message(text) {
-      console.log("Parsing HL7 message:", text.substring(0, 100) + "...");
-      
       // Garantir que quebramos as linhas corretamente - HL7 pode usar CR, LF ou CRLF
       const segments = text.split(/\r\n|\r|\n/).filter(line => line.trim().length > 0);
-      console.log(`Found ${segments.length} HL7 segments`);
       
       // Resultado da análise
       const result = {};
       
-      segments.forEach((segment, i) => {
+      segments.forEach((segment) => {
         try {
           // Verificar se o segmento tem conteúdo
           if (!segment || segment.trim().length === 0) {
-            console.log(`Skipping empty segment at position ${i}`);
             return;
           }
           
           // Obter o tipo de segmento (primeiros 3 caracteres)
           const segmentType = segment.substring(0, 3);
-          console.log(`Processing segment ${i}: ${segmentType}`);
           
           // Dividir o segmento em campos usando o separador de campo '|'
           // O primeiro campo é o próprio tipo de segmento
@@ -62,12 +56,6 @@ function parseHL7() {
                 value: field,
                 components: components
               };
-              
-              // Debug info para campos importantes
-              if ((segmentType === 'OBX' && (index === 3 || index === 5)) || 
-                  (segmentType === 'PID' && index === 5)) {
-                console.log(`${segmentType}[${index}] has components:`, components);
-              }
             } else {
               // Campo simples - armazenar como string
               fieldsArray[index] = field || '';
@@ -77,31 +65,22 @@ function parseHL7() {
           // Adicionar o array de campos ao tipo de segmento
           result[segmentType].push(fieldsArray);
         } catch (error) {
-          console.error(`Error processing segment ${i}:`, error);
+          console.error(`Error processing segment:`, error);
         }
       });
       
       // Converter arrays de segmentos únicos para melhor acesso
       Object.keys(result).forEach(segmentType => {
-        if (result[segmentType].length === 1) {
+        // Não desestruturar segmentos OBX para manter como array
+        if (segmentType !== 'OBX' && result[segmentType].length === 1) {
           result[segmentType] = result[segmentType][0];
         }
       });
       
-      console.log('Parsed HL7 Message:', result);
       return result;
     }
-      // Processar a mensagem HL7
-    console.log("Original HL7 input message:");
-    console.log(input);
     
-    // Split the message into segments for debugging
-    const segments = input.split(/\r\n|\r|\n/).filter(line => line.trim().length > 0);
-    console.log("Raw message segments:");
-    segments.forEach((segment, i) => {
-      console.log(`Segment ${i+1}: ${segment}`);
-    });
-    
+    // Processar a mensagem HL7
     const parsedMessage = parseHL7Message(input);
     
     // Exibir visão técnica
@@ -128,8 +107,6 @@ function updateHL7UserView(hl7Data) {
   const resultsList = [];
   
   try {
-    console.log('Dados HL7:', hl7Data);
-    
     // Obter dados do cabeçalho MSH
     if (hl7Data.MSH) {
       const msh = hl7Data.MSH;
@@ -156,13 +133,12 @@ function updateHL7UserView(hl7Data) {
       const pid = hl7Data.PID;
       
       // Nome do paciente (campo 5)
-      let field5 = pid[5];
-      if (field5) {
+      if (pid[5]) {
         let nameValue = '';
-        if (typeof field5 === 'object' && field5.value) {
-          nameValue = field5.value;
-        } else if (typeof field5 === 'string') {
-          nameValue = field5;
+        if (typeof pid[5] === 'object' && pid[5].value) {
+          nameValue = pid[5].value;
+        } else if (typeof pid[5] === 'string') {
+          nameValue = pid[5];
         }
         
         if (nameValue) {
@@ -176,13 +152,12 @@ function updateHL7UserView(hl7Data) {
       }
       
       // ID do paciente (campo 3)
-      let field3 = pid[3];
-      if (field3) {
+      if (pid[3]) {
         let idValue = '';
-        if (typeof field3 === 'object' && field3.value) {
-          idValue = field3.value;
-        } else if (typeof field3 === 'string') {
-          idValue = field3;
+        if (typeof pid[3] === 'object' && pid[3].value) {
+          idValue = pid[3].value;
+        } else if (typeof pid[3] === 'string') {
+          idValue = pid[3];
         }
         
         if (idValue) {
@@ -195,13 +170,12 @@ function updateHL7UserView(hl7Data) {
     if (hl7Data.OBR) {
       const obr = hl7Data.OBR;
       // Obter o nome do exame do campo 4 (Universal Service ID)
-      let field4 = obr[4];
-      if (field4) {
+      if (obr[4]) {
         let fieldValue = '';
-        if (typeof field4 === 'object' && field4.value) {
-          fieldValue = field4.value;
-        } else if (typeof field4 === 'string') {
-          fieldValue = field4;
+        if (typeof obr[4] === 'object' && obr[4].value) {
+          fieldValue = obr[4].value;
+        } else if (typeof obr[4] === 'string') {
+          fieldValue = obr[4];
         }
         
         if (fieldValue) {
@@ -214,159 +188,73 @@ function updateHL7UserView(hl7Data) {
         }
       }
     }
-      // Obter resultados OBX
+    
+    // Obter resultados OBX
     if (hl7Data.OBX) {
-      console.log("Raw OBX data:", JSON.stringify(hl7Data.OBX)); // Debug with full JSON
-      
       // Garantir que sempre temos um array de OBX para processar
       const obxSegments = Array.isArray(hl7Data.OBX) ? hl7Data.OBX : [hl7Data.OBX];
-      console.log(`Found ${obxSegments.length} OBX segments`); // Debug
       
-      // Check if we have OBX segments that contain hemoglobin
-      let hasHemoglobinSegment = false;
-      
-      obxSegments.forEach((obx, index) => {
-        if (!obx) {
-          console.log(`Skipping empty OBX segment ${index}`);
-          return;
-        }
-        
-        // Debug para ver a estrutura exata do segmento OBX
-        console.log(`OBX segment ${index} structure:`, JSON.stringify(obx));
+      obxSegments.forEach(obx => {
+        // Verificar se temos um segmento OBX válido
+        if (!obx || obx.length < 5) return;
         
         let testName = '';
         let result = '';
         let unit = '';
         let reference = '';
-        let status = '';
+        let status = 'N/A';
         
-        // Função auxiliar para extrair valor de campo de forma robusta
-        const getFieldValue = (field) => {
-          if (!field) return '';
-          
-          // Handle complex field with components
-          if (typeof field === 'object') {
-            if (field.value) return field.value;
-            if (field.components) return field.components.join('^');
+        // Campo 3: Identificador do teste (ex: "718-7^Hemoglobina^LN")
+        if (obx[3]) {
+          if (typeof obx[3] === 'object' && obx[3].components) {
+            // Se tiver componentes separados, pegar o nome amigável (segundo componente)
+            testName = obx[3].components[1] || '';
+          } else {
+            // Caso contrário, usar o valor como está
+            testName = obx[3];
           }
-          
-          // Handle simple string field
-          if (typeof field === 'string') return field;
-          
-          return '';
-        };
-          // Nome do teste (campo 3 - Observation Identifier)
-        try {
-          // Get field 3 (test identifier)
-          const field3Value = getFieldValue(obx[3]);
-          console.log(`OBX[3] raw value:`, field3Value);
-          
-          if (field3Value) {
-            // Parse HL7 component format (e.g. "718-7^Hemoglobina^LN")
-            const testParts = field3Value.split('^');
-            
-            // Use second component if available (more user-friendly name)
-            if (testParts.length > 1) {
-              testName = testParts[1]; // Use the display name
-            } else {
-              testName = field3Value; // Fallback to the raw value
-            }
-            
-            // Look for known code patterns and explicitly map them
-            // HL7 LOINC code for hemoglobin is often 718-7
-            if (field3Value.includes('718-7') || 
-                field3Value.toLowerCase().includes('hgb') || 
-                field3Value.toLowerCase().includes('hemoglobin') || 
-                field3Value.toLowerCase().includes('hemoglobina')) {
-              testName = 'Hemoglobina';
-              console.log("Standardized test name to Hemoglobina based on identifier");
-            }
-            
-            console.log(`Extracted test name: "${testName}"`);
-          }
-        } catch (e) {
-          console.error("Error extracting test name:", e);
         }
         
-        // Resultado (campo 5 - Observation Value)
-        try {
-          result = getFieldValue(obx[5]);
-          console.log(`OBX[5] (Result value): "${result}"`);
-        } catch (e) {
-          console.error("Error extracting result value:", e);
+        // Campo 5: Valor do resultado
+        if (obx[5]) {
+          result = typeof obx[5] === 'object' ? obx[5].value || '' : obx[5];
         }
         
-        // Unidade (campo 6 - Units)
-        try {
-          unit = getFieldValue(obx[6]);
-          console.log(`OBX[6] (Unit): "${unit}"`);
-        } catch (e) {
-          console.error("Error extracting unit:", e);
+        // Campo 6: Unidade
+        if (obx[6]) {
+          unit = typeof obx[6] === 'object' ? obx[6].value || '' : obx[6];
         }
         
-        // Referência (campo 7 - References Range)
-        try {
-          reference = getFieldValue(obx[7]);
-          console.log(`OBX[7] (Reference): "${reference}"`);
-        } catch (e) {
-          console.error("Error extracting reference range:", e);
+        // Campo 7: Intervalo de referência
+        if (obx[7]) {
+          reference = typeof obx[7] === 'object' ? obx[7].value || '' : obx[7];
         }
         
-        // Status (campo 11 - Observation Result Status)
-        try {
-          status = getFieldValue(obx[11]);
-          console.log(`OBX[11] (Status): "${status}"`);
+        // Campo 11: Status do resultado (F=Final, P=Pendente, etc.)
+        if (obx[11]) {
+          const rawStatus = typeof obx[11] === 'object' ? obx[11].value || '' : obx[11];
           
-          // Traduzir códigos comuns de status
-          switch (status) {
+          // Converter códigos de status para texto legível
+          switch (rawStatus) {
             case 'F': status = 'Final'; break;
             case 'P': status = 'Pendente'; break;
             case 'C': status = 'Corrigido'; break;
             case 'X': status = 'Cancelado'; break;
-            default: status = status || 'N/A';
+            default: status = rawStatus || 'N/A';
           }
-        } catch (e) {
-          console.error("Error extracting status:", e);
-          status = 'N/A';
         }
-            // Verificar se temos dados válidos antes de adicionar à lista
-        if (testName) {
-          console.log(`Adding result to list: ${testName} = ${result} ${unit} (ref: ${reference})`);
-          
-          // Adicionar o resultado processado à lista - forçando valores para depuração
-          if (testName === 'Hemoglobina' || testName.includes('emoglobin')) {            console.log("*** Found Hemoglobina result! ***");
-            hasHemoglobinSegment = true;
-            resultsList.push({
-              name: 'Hemoglobina',
-              value: result || '13.5',
-              unit: unit || 'g/dL',
-              reference: reference || '12.0-16.0',
-              status: status || 'Final'
-            });
-          } else {
-            resultsList.push({
-              name: testName,
-              value: result,
-              unit: unit,
-              reference: reference,
-              status: status
-            });
-          }
-        } else {          console.warn("Skipping result with no test name");
+        
+        // Só incluir resultados que tenham um nome de teste válido
+        if (testName && testName.length > 0) {
+          resultsList.push({
+            name: testName,
+            value: result,
+            unit: unit,
+            reference: reference,
+            status: status
+          });
         }
       });
-      
-      // Add hardcoded hemoglobin if none was found in the segments
-      if (!hasHemoglobinSegment) {
-        console.log("No Hemoglobina segment found - adding hardcoded entry at segment level");
-        resultsList.push({
-          name: 'Hemoglobina',
-          value: '13.5',
-          unit: 'g/dL',
-          reference: '12.0-16.0',
-          status: 'Final'
-        });
-      }
     }
     
     // Atualizar campos na visão do usuário
@@ -384,29 +272,14 @@ function updateHL7UserView(hl7Data) {
     // Limpar resultados anteriores
     const resultsContainer = document.getElementById('hl7-results');
     resultsContainer.innerHTML = '';
-      // Limpar resultados anteriores e adicionar novos resultados
+    
+    // Limpar resultados anteriores e adicionar novos resultados
     if (resultsList.length > 0) {
-      console.log("Displaying results:", JSON.stringify(resultsList));
-      
-      // Add hardcoded hemoglobin result if missing
-      if (!resultsList.some(r => r.name === 'Hemoglobina' || r.name.includes('emoglobin'))) {
-        console.log("No Hemoglobina found in results list - adding hardcoded entry");
-        resultsList.push({
-          name: 'Hemoglobina',
-          value: '13.5',
-          unit: 'g/dL',
-          reference: '12.0-16.0',
-          status: 'Final'
-        });
-      }
-      
       resultsList.forEach(result => {
         // Skip empty results
-        if (!result.name && !result.value) {
+        if (!result.name || (!result.value && result.value !== '0')) {
           return;
         }
-        
-        console.log(`Creating display for: ${result.name} = ${result.value} ${result.unit}`);
         
         // Check if result value is abnormal compared to reference range
         const isAbnormal = window.isAbnormalValue ? 
@@ -419,7 +292,14 @@ function updateHL7UserView(hl7Data) {
         resultItem.style.padding = '10px';
         resultItem.style.margin = '0 0 8px 0';
         resultItem.style.borderLeft = '3px solid ' + (isAbnormal ? '#ef4444' : '#10b981');
-        resultItem.style.backgroundColor = '#f8fafc';
+        
+        // Ajustar cores para tema escuro
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        if (isDarkMode) {
+          resultItem.style.backgroundColor = '#1e293b';
+        } else {
+          resultItem.style.backgroundColor = '#f8fafc';
+        }
         resultItem.style.borderRadius = '4px';
         
         // Create result header with test name and value
@@ -432,7 +312,7 @@ function updateHL7UserView(hl7Data) {
         // Test name on left side
         const nameSpan = document.createElement('span');
         nameSpan.textContent = result.name + ':';
-        nameSpan.style.color = '#334155';
+        nameSpan.style.color = isDarkMode ? '#e2e8f0' : '#334155';
         
         // Value on right side (with color indicating normal/abnormal)
         const valueSpan = document.createElement('span');
@@ -446,7 +326,7 @@ function updateHL7UserView(hl7Data) {
         // Create reference range text
         const referenceDiv = document.createElement('div');
         referenceDiv.style.fontSize = '13px';
-        referenceDiv.style.color = '#64748b';
+        referenceDiv.style.color = isDarkMode ? '#94a3b8' : '#64748b';
         referenceDiv.style.marginTop = '4px';
         referenceDiv.textContent = 'Referência: ' + (result.reference || 'N/A');
         
@@ -463,7 +343,7 @@ function updateHL7UserView(hl7Data) {
       noResultsMsg.className = 'no-results-message';
       noResultsMsg.textContent = 'Nenhum resultado disponível';
       noResultsMsg.style.padding = '10px';
-      noResultsMsg.style.color = '#64748b';
+      noResultsMsg.style.color = document.body.classList.contains('dark-mode') ? '#94a3b8' : '#64748b';
       resultsContainer.appendChild(noResultsMsg);
     }
   } catch (error) {
