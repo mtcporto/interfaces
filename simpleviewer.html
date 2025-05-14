@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visualizador DICOM Simples</title>
+  
+  <!-- Carregando bibliotecas JPEG 2000 -->
+  <script src="https://cdn.jsdelivr.net/npm/jpeg-lossless-decoder-js@2.0.4/dist/jpx.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jpeg-lossless-decoder-js@2.0.4/dist/jpegloss.min.js"></script>
+  
+  <!-- Carregando DWV -->
+  <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/dist/dwv.min.js"></script>
+  
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f3f3f3;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      color: #2d4b8e;
+      text-align: center;
+    }
+    .upload-container {
+      text-align: center;
+      padding: 20px;
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    #drop-zone {
+      padding: 25px;
+      cursor: pointer;
+    }
+    #layerContainer {
+      width: 100%;
+      height: 512px;
+      margin-top: 20px;
+      text-align: center;
+      border: 1px solid #ddd;
+    }
+    #dicomInfo {
+      margin-top: 20px;
+      border-top: 1px solid #eee;
+      padding-top: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table td, table th {
+      padding: 8px;
+      border: 1px solid #ddd;
+      text-align: left;
+    }
+    table th {
+      background-color: #f2f2f2;
+    }
+    .hidden {
+      display: none;
+    }
+    .slider {
+      width: 80%;
+      margin: 20px auto;
+    }
+    .toolbar {
+      margin: 10px 0;
+      text-align: center;
+    }
+    button {
+      padding: 8px 15px;
+      margin: 0 5px;
+      background-color: #2d4b8e;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #1d3b6e;
+    }
+    #statusMessage {
+      text-align: center;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Visualizador DICOM Simples</h1>
+    
+    <div class="upload-container">
+      <div id="drop-zone">
+        Arraste e solte um arquivo DICOM (.dcm) aqui ou
+        <input type="file" id="fileInput" accept=".dcm">
+      </div>
+      <div id="statusMessage"></div>
+    </div>
+
+    <div id="dwvContainer" class="hidden">
+      <!-- Barra de ferramentas básicas -->
+      <div class="toolbar">
+        <button id="resetBtn">Resetar Visualização</button>
+        <button id="zoomInBtn">Zoom In</button>
+        <button id="zoomOutBtn">Zoom Out</button>
+        <button id="panBtn">Pan</button>
+        <button id="windowLevelBtn">Ajustar Brilho/Contraste</button>
+      </div>
+      
+      <!-- Container para a imagem do DWV -->
+      <div id="layerContainer"></div>
+      
+      <!-- Controle de slice/frame se for um volume/multi-frame -->
+      <div id="sliceContainer" class="hidden">
+        <input type="range" min="0" value="0" class="slider" id="sliceSlider">
+        <div id="sliceInfo" style="text-align: center;"></div>
+      </div>
+    </div>
+
+    <div id="dicomInfo" class="hidden">
+      <h2>Informações do Arquivo DICOM</h2>
+      <table id="dicomTable">
+        <thead>
+          <tr>
+            <th>Atributo</th>
+            <th>Valor</th>
+          </tr>
+        </thead>
+        <tbody id="dicomData"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // Configuração do decoder JPEG 2000 para DWV
+    if (typeof JpxImage !== "undefined") {
+      dwv.image.decoderScripts = {
+        "jpeg2000": "https://cdn.jsdelivr.net/npm/jpeg-lossless-decoder-js@2.0.4/dist/jpx.min.js"
+      };
+    }
+
+    // Inicialização do viewer DWV
+    let dwvApp = new dwv.App();
+    dwvApp.init({
+      "containerDivId": "layerContainer",
+      "tools": {
+        "WindowLevel": {},
+        "ZoomAndPan": {},
+        "Scroll": {}
+      }
+    });
+    // Automatically load first DICOM file on page load
+    dwvApp.loadURLs(['dicom/image-00000.dcm']);
+
+    // Elementos DOM
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('fileInput');
+    const dwvContainer = document.getElementById('dwvContainer');
+    const dicomInfo = document.getElementById('dicomInfo');
+    const dicomData = document.getElementById('dicomData');
+    const sliceContainer = document.getElementById('sliceContainer');
+    const sliceSlider = document.getElementById('sliceSlider');
+    const sliceInfo = document.getElementById('sliceInfo');
+    const statusMessage = document.getElementById('statusMessage');
+    
+    // Botões da barra de ferramentas
+    document.getElementById('resetBtn').addEventListener('click', function() {
+      dwvApp.resetDisplay();
+    });
+    
+    document.getElementById('zoomInBtn').addEventListener('click', function() {
+      dwvApp.zoomIn();
+    });
+    
+    document.getElementById('zoomOutBtn').addEventListener('click', function() {
+      dwvApp.zoomOut();
+    });
+    
+    document.getElementById('panBtn').addEventListener('click', function() {
+      dwvApp.setTool("ZoomAndPan");
+    });
+    
+    document.getElementById('windowLevelBtn').addEventListener('click', function() {
+      dwvApp.setTool("WindowLevel");
+    });
+
+    // Evento para seleção de arquivo
+    fileInput.addEventListener('change', function(e) {
+      if (e.target.files.length > 0) {
+        loadAndDisplayFile(e.target.files[0]);
+      }
+    });
+
+    // Configuração de drag-and-drop
+    dropZone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      dropZone.style.backgroundColor = '#e9f5ff';
+    });
+
+    dropZone.addEventListener('dragleave', function(e) {
+      e.preventDefault();
+      dropZone.style.backgroundColor = 'transparent';
+    });
+
+    dropZone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      dropZone.style.backgroundColor = 'transparent';
+      
+      if (e.dataTransfer.files.length > 0) {
+        loadAndDisplayFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    // Função para carregar e mostrar o arquivo
+    function loadAndDisplayFile(file) {
+      if (!file) return;
+      
+      // Mostrar mensagem de carregamento
+      statusMessage.textContent = "Carregando arquivo DICOM...";
+      
+      // Resetar o viewer
+      dwvApp.reset();
+      
+      // Limpar a tabela de metadados
+      dicomData.innerHTML = '';
+      
+      // Carregar o arquivo
+      dwvApp.loadFiles([file]);
+    }
+
+    // Eventos do DWV app
+    dwvApp.addEventListener('load-start', function (event) {
+      console.log('Carregamento iniciado');
+    });
+    
+    dwvApp.addEventListener('load-progress', function (event) {
+      statusMessage.textContent = "Carregando: " + event.loaded + "%";
+    });
+    
+    dwvApp.addEventListener('load', function (event) {
+      // Mostrar o container DWV
+      dwvContainer.classList.remove('hidden');
+      
+      // Obter os metadados
+      const image = dwvApp.getImage();
+      if (!image) {
+        statusMessage.textContent = "Erro: Não foi possível carregar a imagem.";
+        return;
+      }
+      
+      statusMessage.textContent = "Arquivo carregado com sucesso!";
+      
+      // Setup para imagens multi-frame/volume
+      let numberOfSlices = 1;
+      try {
+        numberOfSlices = image.getGeometry().getSize().getNumberOfSlices();
+      } catch (e) {
+        console.warn("Não foi possível determinar o número de slices:", e);
+      }
+      
+      if (numberOfSlices > 1) {
+        sliceSlider.max = numberOfSlices - 1;
+        sliceSlider.value = 0;
+        sliceInfo.textContent = "Slice: 1/" + numberOfSlices;
+        sliceContainer.classList.remove('hidden');
+        
+        sliceSlider.addEventListener('input', function() {
+          dwvApp.setCurrentPosition({ k: parseInt(sliceSlider.value) });
+          sliceInfo.textContent = "Slice: " + (parseInt(sliceSlider.value) + 1) + "/" + numberOfSlices;
+        });
+      } else {
+        sliceContainer.classList.add('hidden');
+      }
+      
+      // Mostrar metadados
+      displayMetadata(dwvApp.getMetaData());
+    });
+    
+    dwvApp.addEventListener('error', function (event) {
+      console.error("Erro DWV:", event.error);
+      statusMessage.textContent = "Erro: " + (event.error.message || "Falha ao carregar imagem");
+    });
+
+    // Exibir metadata DICOM
+    function displayMetadata(metaData) {
+      if (!metaData) {
+        console.warn("Sem metadados disponíveis");
+        return;
+      }
+      
+      // Limpar tabela
+      dicomData.innerHTML = '';
+      
+      // Tags importantes para mostrar
+      const importantTags = {
+        '00100010': 'Nome do Paciente',
+        '00100020': 'ID do Paciente',
+        '00100030': 'Data de Nascimento',
+        '00100040': 'Sexo',
+        '00080020': 'Data do Estudo',
+        '00080030': 'Hora do Estudo',
+        '00080060': 'Modalidade',
+        '00080090': 'Médico Referente',
+        '00081030': 'Descrição do Estudo',
+        '00180015': 'Parte do Corpo',
+        '00200011': 'Número da Série',
+        '00280010': 'Linhas',
+        '00280011': 'Colunas',
+        '00280030': 'Espaçamento de Pixel',
+        '00280004': 'Interpretação Fotométrica',
+        '00280100': 'Bits Alocados',
+        '00280101': 'Bits Armazenados'
+      };
+      
+      // Iterar pelos metadados
+      try {
+        for (const tag in importantTags) {
+          // Verificar se o dado existe
+          const tagValue = getDicomTagValue(metaData, tag);
+          if (tagValue !== null) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${importantTags[tag]}</td>
+              <td>${tagValue}</td>
+            `;
+            dicomData.appendChild(row);
+          }
+        }
+        
+        // Mostrar seção de informações
+        dicomInfo.classList.remove('hidden');
+      } catch (error) {
+        console.error("Erro ao processar metadados:", error);
+      }
+    }
+    
+    // Função auxiliar para obter valores de tags DICOM
+    function getDicomTagValue(metaData, tagStr) {
+      if (!metaData || !tagStr) return null;
+      
+      // Formato esperado para tags é '00100010' - converter para o formato de objeto de acesso
+      const group = tagStr.substring(0, 4);
+      const element = tagStr.substring(4, 8);
+      
+      try {
+        if (typeof metaData.get === 'function') {
+          const value = metaData.get(group, element);
+          if (value && value.value) {
+            return Array.isArray(value.value) ? value.value[0] : value.value;
+          }
+        }
+        return null;
+      } catch (e) {
+        console.error('Erro ao ler tag:', tagStr, e);
+        return null;
+      }
+    }
+  </script>
+</body>
+</html>

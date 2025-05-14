@@ -2,30 +2,37 @@
  * MVP de Interfaceamento Laboratorial - Funcionalidades DICOM
  */
 
-// Variável para a aplicação DWV
-let dwvApp;
-
 // OHIF Viewer Integration (migrated from ohif-viewer.js)
-// Polyfill pointer events support
-if (window.cornerstone) {
-  cornerstone.events = cornerstone.events || {};
-  cornerstone.events.touch = cornerstone.events.touch || {};
-  cornerstone.events.touch.SUPPORT_POINTER_EVENTS = ('onpointerdown' in window);
-  cornerstone.touchEventListeners = cornerstone.touchEventListeners || {};
-  cornerstone.touchEventListeners.SUPPORT_POINTER_EVENTS = ('onpointerdown' in window);
-}
 
 function initOHIFViewer() {
-  try {
-    // Initialize cornerstone and tools
-    cornerstone.enable(document.getElementById('dicom-image-container'));
-    cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
-    cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
-    cornerstoneTools.init({ showSVGCursors: true });
-    setupDicomControlListeners();
-  } catch (e) {
-    console.warn('OHIF init skipped:', e);
+  const element = document.getElementById('dicom-image-container');
+  if (!element) return;
+  // Configure externals for WADO loader and tools
+  cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+  cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+  cornerstoneTools.external.cornerstone = cornerstone;
+  if (typeof window.Hammer !== 'undefined') {
+    cornerstoneTools.external.Hammer = window.Hammer;
+  } else {
+    console.warn('Hammer não encontrado em window');
   }
+  // Initialize cornerstone WADO image loader web worker
+  if (cornerstoneWADOImageLoader.webWorkerManager && typeof cornerstoneWADOImageLoader.webWorkerManager.initialize === 'function') {
+    cornerstoneWADOImageLoader.webWorkerManager.initialize({
+      webWorkerPath: 'https://unpkg.com/cornerstone-wado-image-loader@4.13.2/dist/cornerstoneWADOImageLoaderWebWorker.min.js',
+      taskConfiguration: { decodeTask: { name: 'decodeTask' } }
+    });
+  }
+  // Enable Cornerstone on the container
+  try {
+    cornerstone.enable(element);
+  } catch (e) {
+    console.warn('Cornerstone enable failed:', e);
+    return;
+  }
+  // Initialize tools
+  cornerstoneTools.init({ showSVGCursors: true });
+  setupDicomControlListeners();
 }
 
 function showDicomWithOHIF(buffer, filename) {
@@ -33,22 +40,22 @@ function showDicomWithOHIF(buffer, filename) {
   if (!element) return;
   // clear container
   while (element.firstChild) element.removeChild(element.firstChild);
-  addDicomControls();
   try {
     cornerstone.enable(element);
     cornerstone.resize(element);
-  } catch {}
-  const blob = new Blob([buffer], { type: 'application/dicom' });
-  const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(blob);
-  cornerstone.loadAndCacheImage(imageId).then(image => {
-    cornerstone.displayImage(element, image);
-    addToolsToDicomImage(element);
-    updateDicomControls(true);
-  }).catch(() => updateDicomControls(false));
+    const blob = new Blob([buffer], { type: 'application/dicom' });
+    const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(blob);
+    cornerstone.loadAndCacheImage(imageId).then(image => {
+      cornerstone.displayImage(element, image);
+      addToolsToDicomImage(element);
+      updateDicomControls(true);
+    }).catch(() => updateDicomControls(false));
+  } catch (e) {
+    console.warn('OHIF display skipped:', e);
+  }
 }
 
 window.showDicomImage = showDicomWithOHIF;
-document.addEventListener('DOMContentLoaded', initOHIFViewer);
 
 // OHIF control listeners and helpers
 function setupDicomControlListeners() {
@@ -58,13 +65,6 @@ function setupDicomControlListeners() {
       cornerstone.resize(el);
     }
   });
-}
-
-function addDicomControls() {
-  const container = document.getElementById('dicom-image-container');
-  if (!container) return;
-  addViewerControls(container);
-  addImageControls(container);
 }
 
 function addToolsToDicomImage(element) {
@@ -84,54 +84,6 @@ function updateDicomControls(isLoaded) {
   if (container) {
     container.classList.toggle('loaded', isLoaded);
   }
-}
-
-// Inicialização dos componentes DICOM
-document.addEventListener('DOMContentLoaded', function() {
-  // Setup DICOM dropzone
-  setupDicomDropzone();
-  
-  // Lista os arquivos DICOM locais disponíveis
-  loadLocalDicomFiles();
-  
-  // Removendo inicialização do DWV (usando OHIF Viewer apenas)
-  // initializeDWV();
-  
-  // Adicionar listener para o seletor de DICOM online
-  const onlineDicomSelect = document.getElementById('onlineDicomSelect');
-  if (onlineDicomSelect) {
-    onlineDicomSelect.addEventListener('change', function() {
-      if (this.value) {
-        downloadOnlineDicom(this.value);
-      }
-    });
-  }
-});
-
-// Configurar presets de janelamento
-function setupWindowLevelPresets() {
-  // Presets para diferentes modalidades
-  window.dicomWindowingPresets = {
-    'CT': [
-      { name: 'Tecido Mole', wl: 40, ww: 400 },
-      { name: 'Pulmão', wl: -600, ww: 1500 },
-      { name: 'Osso', wl: 500, ww: 2000 },
-      { name: 'Cérebro', wl: 40, ww: 80 }
-    ],
-    'MR': [
-      { name: 'T1', wl: 550, ww: 950 },
-      { name: 'T2', wl: 750, ww: 800 }
-    ],
-    'XR': [
-      { name: 'Padrão', wl: 128, ww: 256 },
-      { name: 'Alto Contraste', wl: 128, ww: 128 }
-    ],
-    'DEFAULT': [
-      { name: 'Alto Contraste', wl: 127.5, ww: 255 },
-      { name: 'Baixo Contraste', wl: 127.5, ww: 700 }
-    ]
-  };
-  console.log('Presets de janelamento configurados');
 }
 
 // Função para configurar a zona de drop de arquivos DICOM
@@ -360,6 +312,7 @@ function parseDicomFile() {
 
 // Função para processar um buffer DICOM (usado para ambos upload e arquivos locais)
 function processDicomBuffer(buffer, outputElement, filename) {
+  let extractedData = {};
   try {
     if (typeof dicomParser === 'undefined') {
       outputElement.textContent = 'Biblioteca dicomParser não carregada. Verifique o console.';
@@ -370,7 +323,7 @@ function processDicomBuffer(buffer, outputElement, filename) {
     const byteArray = new Uint8Array(buffer);
     const dataSet = dicomParser.parseDicom(byteArray);
     
-    const extractedData = {
+    extractedData = {
       patientName: dataSet.string('x00100010'),
       patientID: dataSet.string('x00100020'),
       studyInstanceUID: dataSet.string('x0020000d'),
@@ -407,8 +360,8 @@ function processDicomBuffer(buffer, outputElement, filename) {
     if (typeof showDicomImage === 'function') {
       showDicomImage(buffer, filename);
     } else {
-      console.warn('OHIF Viewer não disponível, tentando DWV');
-      renderDicomViewer(buffer, extractedData);
+      console.warn('OHIF Viewer não disponível');
+      updateDicomImageContainer(extractedData);
     }
     return extractedData;
   } catch (error) {
@@ -510,363 +463,4 @@ function updateDicomUserView(dicomData) {
       metadataContainer.appendChild(metadataItem);
     }
   }
-}
-
-// Função para aplicar janelamento padrão de acordo com a modalidade
-function applyDefaultWindowLevel() {
-  console.log('Aplicando janelamento padrão');
-  
-  try {
-    // Verificar se a imagem foi carregada
-    if (!dwvApp.isLoaded()) {
-      console.warn('DWV não carregou nenhuma imagem ainda');
-      return;
-    }
-    
-    // Obter a imagem do DWV
-    const image = dwvApp.getImage();
-    if (!image) {
-      console.warn('Imagem DICOM não disponível');
-      return;
-    }
-    
-    // Obter a modalidade da imagem
-    const modality = image.getMeta().Modality || 'DEFAULT';
-    console.log(`Detectada modalidade: ${modality}`);
-    
-    // Definir valores de janelamento de acordo com a modalidade
-    let windowCenter, windowWidth;
-    
-    switch(modality) {
-      case 'CT':
-        // Valores padrão para CT - Tecido Mole
-        windowCenter = 40;
-        windowWidth = 350;
-        break;
-      case 'MR':
-        // Valores padrão para MR
-        windowCenter = 600;
-        windowWidth = 1200;
-        break;
-      case 'XR':
-      case 'CR':
-        // Valores padrão para radiografia
-        windowCenter = 2048;
-        windowWidth = 4096;
-        break;
-      default:
-        // Tentar obter valores do DICOM
-        windowCenter = image.getMeta().WindowCenter;
-        windowWidth = image.getMeta().WindowWidth;
-        
-        // Tratar arrays de valores (alguns DICOM têm múltiplos valores)
-        if (Array.isArray(windowCenter)) windowCenter = windowCenter[0];
-        if (Array.isArray(windowWidth)) windowWidth = windowWidth[0];
-        
-        // Se não houver valores específicos ou forem inválidos, calcular
-        if (!windowCenter || !windowWidth || windowWidth <= 0) {
-          // Calcular com base no alcance de valores na imagem
-          const range = image.getRescaledDataRange();
-          if (range) {
-            windowWidth = (range.max - range.min) * 0.9;  // 90% do intervalo
-            windowCenter = range.min + (range.max - range.min) / 2;
-          } else {
-            // Valores de fallback genéricos se tudo falhar
-            windowWidth = 255;
-            windowCenter = 127;
-          }
-        }
-    }
-    
-    // Aplicar o janelamento à imagem
-    dwvApp.setWindowLevel(windowCenter, windowWidth);
-    console.log(`Janelamento aplicado: Centro=${windowCenter}, Largura=${windowWidth}`);
-      // Atualizar a visualização (sem adicionar controles, isso será feito em outra função)
-    dwvApp.render();
-    
-    // Forçar a atualização da visualização
-    dwvApp.render();
-    
-  } catch (error) {
-    console.error('Erro ao aplicar janelamento padrão:', error);
-  }
-}
-
-// Função para adicionar controles de visualização ao contêiner
-function addViewerControls(container) {
-  console.log('Adicionando controles de visualização');
-  
-  // Verificar se já existem controles
-  if (container.querySelector('.dicom-controls')) {
-    console.log('Controles já existem');
-    return;
-  }
-  
-  // Criar contêiner para os controles
-  const controlsDiv = document.createElement('div');
-  controlsDiv.className = 'dicom-controls';
-  controlsDiv.style.cssText = 'position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 5px;';
-  
-  // Botão de auto-contraste
-  const autoButton = document.createElement('button');
-  autoButton.textContent = 'Auto Contraste';
-  autoButton.style.cssText = 'margin: 5px; padding: 5px 10px; cursor: pointer; background: #2196F3; color: white; border: none; border-radius: 3px;';
-  autoButton.onclick = applyDefaultWindowLevel;
-  
-  // Adicionar presets comuns
-  const presets = [
-    { name: 'Tecido Mole', center: 40, width: 350 },
-    { name: 'Pulmão', center: -500, width: 1500 },
-    { name: 'Osso', center: 480, width: 2500 },
-    { name: 'Cérebro', center: 40, width: 80 }
-  ];
-  
-  // Criar seletor de presets
-  const presetSelect = document.createElement('select');
-  presetSelect.style.cssText = 'margin: 5px; padding: 5px; cursor: pointer;';
-  
-  // Opção padrão
-  const defaultOption = document.createElement('option');
-  defaultOption.textContent = 'Selecione preset';
-  defaultOption.disabled = true;
-  defaultOption.selected = true;
-  presetSelect.appendChild(defaultOption);
-  
-  // Adicionar opções de preset
-  presets.forEach(preset => {
-    const option = document.createElement('option');
-    option.value = JSON.stringify({center: preset.center, width: preset.width});
-    option.textContent = preset.name;
-    presetSelect.appendChild(option);
-  });
-  
-  // Evento de mudança do preset
-  presetSelect.onchange = function() {
-    try {
-      const preset = JSON.parse(this.value);
-      dwvApp.setWindowLevel(preset.center, preset.width);
-      console.log(`Preset aplicado: ${this.options[this.selectedIndex].textContent}`);
-    } catch (e) {
-      console.error('Erro ao aplicar preset:', e);
-    }
-    this.selectedIndex = 0; // Reset para opção padrão
-  };
-  
-  // Adicionar controles ao contêiner
-  controlsDiv.appendChild(autoButton);
-  controlsDiv.appendChild(presetSelect);
-  container.appendChild(controlsDiv);
-  
-  console.log('Controles de visualização adicionados');
-}
-
-// Função para adicionar controles de imagem mais completos ao contêiner
-function addImageControls(container) {
-  // Verificar se já existem controles
-  if (container.querySelector('.dicom-image-controls')) {
-    return;
-  }
-  
-  // Criar painel flutuante para controles
-  const controlsPanel = document.createElement('div');
-  controlsPanel.className = 'dicom-image-controls';
-  controlsPanel.style.cssText = `
-    position: absolute; 
-    top: 10px; 
-    right: 10px; 
-    background-color: rgba(0,0,0,0.7);
-    border-radius: 5px;
-    padding: 10px;
-    z-index: 1000;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-  `;
-  
-  // Título do painel
-  const titleDiv = document.createElement('div');
-  titleDiv.textContent = 'Ajustes de Imagem';
-  titleDiv.style.cssText = `
-    color: white;
-    font-weight: bold;
-    margin-bottom: 8px;
-    text-align: center;
-    font-size: 14px;
-  `;
-  controlsPanel.appendChild(titleDiv);
-  
-  // Botões de ferramentas
-  const toolsDiv = document.createElement('div');
-  toolsDiv.style.cssText = `
-    display: flex;
-    justify-content: center;
-    margin-bottom: 10px;
-  `;
-  
-  // Função para criar botão de ferramenta
-  const createToolButton = (icon, tooltip, tool) => {
-    const btn = document.createElement('button');
-    btn.innerHTML = `<i class="fas fa-${icon}"></i>`;
-    btn.title = tooltip;
-    btn.style.cssText = `
-      background-color: #333;
-      color: white;
-      border: none;
-      border-radius: 3px;
-      margin: 0 2px;
-      padding: 5px 8px;
-      cursor: pointer;
-    `;
-    btn.addEventListener('mouseover', () => { btn.style.backgroundColor = '#555'; });
-    btn.addEventListener('mouseout', () => { btn.style.backgroundColor = '#333'; });
-    btn.addEventListener('click', () => { 
-      dwvApp.setTool(tool);
-      // Destacar botão ativo
-      toolsDiv.querySelectorAll('button').forEach(b => b.style.backgroundColor = '#333');
-      btn.style.backgroundColor = '#2196F3';
-    });
-    return btn;
-  };
-  
-  // Adicionar botões de ferramentas
-  toolsDiv.appendChild(createToolButton('adjust', 'Ajustar Contraste/Brilho', 'WindowLevel'));
-  toolsDiv.appendChild(createToolButton('search-plus', 'Zoom e Navegação', 'ZoomAndPan'));
-  toolsDiv.appendChild(createToolButton('arrows-alt', 'Rolar (séries)', 'Scroll'));
-  
-  // Botão de reset
-  const resetBtn = document.createElement('button');
-  resetBtn.innerHTML = '<i class="fas fa-undo"></i>';
-  resetBtn.title = 'Resetar Visualização';
-  resetBtn.style.cssText = `
-    background-color: #333;
-    color: white;
-    border: none;
-    border-radius: 3px;
-    margin: 0 2px;
-    padding: 5px 8px;
-    cursor: pointer;
-  `;
-  resetBtn.addEventListener('mouseover', () => { resetBtn.style.backgroundColor = '#555'; });
-  resetBtn.addEventListener('mouseout', () => { resetBtn.style.backgroundColor = '#333'; });
-  resetBtn.addEventListener('click', () => { dwvApp.resetDisplay(); });
-  toolsDiv.appendChild(resetBtn);
-  
-  controlsPanel.appendChild(toolsDiv);
-  
-  // Botão de Auto Contraste
-  const autoContrastBtn = document.createElement('button');
-  autoContrastBtn.textContent = '🔄 Auto Contraste';
-  autoContrastBtn.style.cssText = `
-    background-color: #10b981;
-    color: white;
-    border: none;
-    border-radius: 3px;
-    padding: 6px;
-    margin: 5px 0;
-    width: 100%;
-    cursor: pointer;
-    font-size: 13px;
-  `;
-  autoContrastBtn.addEventListener('click', () => {
-    try {
-      const image = dwvApp.getImage();
-      if (image) {
-        const range = image.getRescaledDataRange();
-        // Usar 95% do intervalo para evitar outliers
-        const min = range.min + (range.max - range.min) * 0.025;
-        const max = range.max - (range.max - range.min) * 0.025;
-        const ww = max - min;
-        const wc = min + ww/2;
-        dwvApp.setWindowLevel(wc, ww);
-        console.log(`Auto contraste aplicado: Centro=${wc.toFixed(0)}, Largura=${ww.toFixed(0)}`);
-      }
-    } catch (e) {
-      console.error('Erro ao aplicar auto contraste:', e);
-    }
-  });
-  controlsPanel.appendChild(autoContrastBtn);
-  
-  // Presets de contraste específicos por modalidade
-  const image = dwvApp.getImage();
-  if (image) {
-    const modality = image.getMeta().Modality || 'DEFAULT';
-    
-    let presets = [];
-    // Definir presets de acordo com a modalidade
-    switch(modality) {
-      case 'CT':
-        presets = [
-          { name: 'Tecido Mole', wc: 40, ww: 400 },
-          { name: 'Pulmão', wc: -600, ww: 1500 },
-          { name: 'Osso', wc: 500, ww: 2000 },
-          { name: 'Cérebro', wc: 40, ww: 80 }
-        ];
-        break;
-      case 'MR':
-        presets = [
-          { name: 'T1', wc: 550, ww: 950 },
-          { name: 'T2', wc: 750, ww: 800 }
-        ];
-        break;
-      case 'XR':
-      case 'CR':
-        presets = [
-          { name: 'Padrão', wc: 2048, ww: 4096 },
-          { name: 'Alto Contraste', wc: 2048, ww: 2048 }
-        ];
-        break;
-      default:
-        presets = [
-          { name: 'Padrão', wc: 127, ww: 255 },
-          { name: 'Alto Contraste', wc: 127, ww: 127 }
-        ];
-    }
-    
-    // Criar contêiner para presets
-    const presetsDiv = document.createElement('div');
-    presetsDiv.style.marginTop = '8px';
-    
-    // Título dos presets
-    const presetsTitle = document.createElement('div');
-    presetsTitle.textContent = 'Presets para ' + modality;
-    presetsTitle.style.cssText = `
-      color: white;
-      font-size: 12px;
-      margin-bottom: 5px;
-      text-align: center;
-    `;
-    presetsDiv.appendChild(presetsTitle);
-    
-    // Grid de botões para os presets
-    const presetsGrid = document.createElement('div');
-    presetsGrid.style.cssText = `
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 5px;
-    `;
-    
-    // Criar botões para cada preset
-    presets.forEach(preset => {
-      const presetBtn = document.createElement('button');
-      presetBtn.textContent = preset.name;
-      presetBtn.style.cssText = `
-        background-color: #4b5563;
-        color: white;
-        border: none;
-        border-radius: 3px;
-        padding: 4px;
-        font-size: 12px;
-        cursor: pointer;
-      `;
-      presetBtn.addEventListener('click', () => {
-        dwvApp.setWindowLevel(preset.wc, preset.ww);
-        console.log(`Preset ${preset.name} aplicado: Centro=${preset.wc}, Largura=${preset.ww}`);
-      });
-      presetsGrid.appendChild(presetBtn);
-    });
-    
-    presetsDiv.appendChild(presetsGrid);
-    controlsPanel.appendChild(presetsDiv);
-  }
-  
-  // Adicionar o painel de controle ao contêiner
-  container.appendChild(controlsPanel);
 }

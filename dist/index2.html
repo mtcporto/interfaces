@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>OHIF + Cornerstone via CDN</title>
+  <style>
+    #dicomContainer {
+      width: 512px;
+      height: 512px;
+      border: 1px solid #444;
+      margin: 20px auto;
+    }
+  </style>
+</head>
+<body>
+  <div id="dicomContainer"></div>
+
+  <!-- 1) libs Cornerstone + dicomParser + WADO loader + Tools + HammerJS -->
+  <script src="https://unpkg.com/cornerstone-core@2.6.1/dist/cornerstone.min.js" crossorigin></script>
+  <script src="https://unpkg.com/dicom-parser@1.8.5/dist/dicomParser.min.js" crossorigin></script>
+  <script src="https://unpkg.com/cornerstone-wado-image-loader@4.13.2/dist/cornerstoneWADOImageLoader.bundle.min.js" crossorigin></script>
+  <script src="https://unpkg.com/hammerjs@2.0.8/hammer.min.js" crossorigin></script>
+  <script src="https://cdn.jsdelivr.net/npm/cornerstone-tools@4.22.5/dist/cornerstoneTools.umd.min.js" crossorigin></script>
+
+  <!-- Debug: confirm globals -->
+  <script>
+    console.log('cornerstoneWADOImageLoader:', window.cornerstoneWADOImageLoader);
+    console.log('cornerstoneTools:', window.cornerstoneTools);
+  </script>
+
+  <script>
+    // 2) hookup externals
+    cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+    cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+    cornerstoneTools.external.cornerstone = cornerstone;
+    cornerstoneTools.external.Hammer = Hammer;
+
+    // 3) initialize WADO web worker
+    cornerstoneWADOImageLoader.webWorkerManager.initialize({
+      webWorkerPath: 'https://unpkg.com/cornerstone-wado-image-loader@4.13.2/dist/cornerstoneWADOImageLoaderWebWorker.min.js',
+      taskConfiguration: { decodeTask: { name: 'decodeTask' } }
+    });
+
+    // 4) enable e exibir
+    const element = document.getElementById('dicomContainer');
+    cornerstone.enable(element);
+
+    fetch('dicom/image-00000.dcm')
+      .then(r => r.arrayBuffer())
+      .then(buffer => {
+        const blob = new Blob([buffer], { type: 'application/dicom' });
+        const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(blob);
+        return cornerstone.loadAndCacheImage(imageId);
+      })
+      .then(image => {
+        cornerstone.displayImage(element, image);
+        // ativar tools básicas, se quiser
+        cornerstoneTools.init();
+        cornerstoneTools.addTool(cornerstoneTools.WwwcTool);
+        cornerstoneTools.setToolActive('Wwwc', { mouseButtonMask: 1 });
+      })
+      .catch(console.error);
+  </script>
+</body>
+</html>

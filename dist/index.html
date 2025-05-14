@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+
+  <meta name="description" content="Open Health Imaging Foundation DICOM Viewer" />
+  <meta name="viewport"
+    content="width=device-width,initial-scale=1.0,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+  <meta name="theme-color" content="#000000" />
+  <meta http-equiv="cleartype" content="on" />
+  <meta name="MobileOptimized" content="320" />
+  <meta name="HandheldFriendly" content="True" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+
+  <!-- polyfill.io include removed (domain resolution issues) -->
+
+  <title>OHIF Standalone Viewer</title>
+  <!-- OHIF Viewer styles -->
+  <link rel="stylesheet" href="https://unpkg.com/@ohif/viewer/dist/index.css" />
+</head>
+
+<body>
+  <noscript> You need to enable JavaScript to run this app. </noscript>
+
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/@ohif/viewer/dist/app-config.js"></script>
+  <script>
+    // Override default server list with a public DICOMweb endpoint
+    window.config.servers = window.config.servers || {};
+    window.config.servers.dicomWeb = [{
+      name: 'DCMJS Public',
+      wadoUriRoot: 'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/wado',
+      qidoRoot: 'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs',
+      wadoRoot: 'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs',
+      qidoSupportsIncludeField: true,
+      supportsFuzzyMatching: true,
+      imageRendering: 'wadors',
+      thumbnailRendering: 'wadors'
+    }];
+  </script>
+  <script src="https://unpkg.com/@ohif/viewer/dist/index.umd.js" crossorigin></script>
+  <script>
+    var containerId = 'root';
+    var componentRenderedOrUpdatedCallback = function () {
+      console.log('OHIF Viewer rendered/updated');
+    };
+    // Pass a sample StudyInstanceUID to open directly in Viewer
+    var defaultStudies = [
+      '1.3.6.1.4.1.5962.99.1.1955723241.2322141158.1582671125.50'
+    ];
+    window.OHIFViewer.installViewer(
+      window.config,
+      containerId,
+      componentRenderedOrUpdatedCallback,
+      defaultStudies
+    );
+
+    // after OHIF rendered, fetch one file from your static folder and render it
+    setTimeout(()=>{
+      const container = document.querySelector('.viewport-element'); 
+      fetch('dicom/image-00000.dcm')
+        .then(r=>r.arrayBuffer())
+        .then(buffer=>{
+          const blob = new Blob([buffer], { type: 'application/dicom' });
+          const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(blob);
+          cornerstone.loadAndCacheImage(imageId).then(image=>{
+            cornerstone.displayImage(container, image);
+          });
+        });
+    }, 2000);
+  </script>
+  <script>
+    // Quick hack: directly enable OHIF viewport and display a local DICOM file
+    setTimeout(() => {
+      // Select the actual cornerstone-enabled viewport element
+      const element = document.querySelector('[data-cornerstone-element]');
+      if (!element || !window.cornerstone) return;
+      // Enable and resize viewport
+      try { cornerstone.enable(element); cornerstone.resize(element); } catch (e) {}
+      fetch('dicom/image-00000.dcm')
+        .then(r => r.arrayBuffer())
+        .then(buffer => {
+          const blob = new Blob([buffer], { type: 'application/dicom' });
+          const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(blob);
+          return cornerstone.loadAndCacheImage(imageId);
+        })
+        .then(image => {
+          cornerstone.displayImage(element, image);
+        })
+        .catch(err => console.error('DICOM load/display error:', err));
+    }, 3000);
+  </script>
+</body>
+
+</html>
