@@ -5,6 +5,87 @@
 // Variável para a aplicação DWV
 let dwvApp;
 
+// OHIF Viewer Integration (migrated from ohif-viewer.js)
+// Polyfill pointer events support
+if (window.cornerstone) {
+  cornerstone.events = cornerstone.events || {};
+  cornerstone.events.touch = cornerstone.events.touch || {};
+  cornerstone.events.touch.SUPPORT_POINTER_EVENTS = ('onpointerdown' in window);
+  cornerstone.touchEventListeners = cornerstone.touchEventListeners || {};
+  cornerstone.touchEventListeners.SUPPORT_POINTER_EVENTS = ('onpointerdown' in window);
+}
+
+function initOHIFViewer() {
+  try {
+    // Initialize cornerstone and tools
+    cornerstone.enable(document.getElementById('dicom-image-container'));
+    cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+    cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+    cornerstoneTools.init({ showSVGCursors: true });
+    setupDicomControlListeners();
+  } catch (e) {
+    console.warn('OHIF init skipped:', e);
+  }
+}
+
+function showDicomWithOHIF(buffer, filename) {
+  const element = document.getElementById('dicom-image-container');
+  if (!element) return;
+  // clear container
+  while (element.firstChild) element.removeChild(element.firstChild);
+  addDicomControls();
+  try {
+    cornerstone.enable(element);
+    cornerstone.resize(element);
+  } catch {}
+  const blob = new Blob([buffer], { type: 'application/dicom' });
+  const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(blob);
+  cornerstone.loadAndCacheImage(imageId).then(image => {
+    cornerstone.displayImage(element, image);
+    addToolsToDicomImage(element);
+    updateDicomControls(true);
+  }).catch(() => updateDicomControls(false));
+}
+
+window.showDicomImage = showDicomWithOHIF;
+document.addEventListener('DOMContentLoaded', initOHIFViewer);
+
+// OHIF control listeners and helpers
+function setupDicomControlListeners() {
+  window.addEventListener('resize', () => {
+    const el = document.getElementById('dicom-image-container');
+    if (el && cornerstone.getEnabledElement(el)) {
+      cornerstone.resize(el);
+    }
+  });
+}
+
+function addDicomControls() {
+  const container = document.getElementById('dicom-image-container');
+  if (!container) return;
+  addViewerControls(container);
+  addImageControls(container);
+}
+
+function addToolsToDicomImage(element) {
+  // Register and activate basic tools
+  cornerstoneTools.addTool(cornerstoneTools.WwwcTool);
+  cornerstoneTools.addTool(cornerstoneTools.PanTool);
+  cornerstoneTools.addTool(cornerstoneTools.ZoomTool);
+  cornerstoneTools.addTool(cornerstoneTools.StackScrollTool);
+  cornerstoneTools.setToolActive('Wwwc', { mouseButtonMask: 1 });
+  cornerstoneTools.setToolActive('Pan', { mouseButtonMask: 2 });
+  cornerstoneTools.setToolActive('Zoom', { mouseButtonMask: 4 });
+  cornerstoneTools.setToolActive('StackScroll', { mouseButtonMask: 1 });
+}
+
+function updateDicomControls(isLoaded) {
+  const container = document.getElementById('dicom-image-container');
+  if (container) {
+    container.classList.toggle('loaded', isLoaded);
+  }
+}
+
 // Inicialização dos componentes DICOM
 document.addEventListener('DOMContentLoaded', function() {
   // Setup DICOM dropzone
@@ -13,8 +94,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // Lista os arquivos DICOM locais disponíveis
   loadLocalDicomFiles();
   
-  // Inicializar o DWV (DICOMweb Viewer)
-  initializeDWV();
+  // Removendo inicialização do DWV (usando OHIF Viewer apenas)
+  // initializeDWV();
   
   // Adicionar listener para o seletor de DICOM online
   const onlineDicomSelect = document.getElementById('onlineDicomSelect');
@@ -26,70 +107,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
-
-// Inicialização do DWV
-function initializeDWV() {
-  // Verificar se a biblioteca DWV está disponível
-  if (typeof dwv === 'undefined') {
-    console.warn('Biblioteca DWV não carregada.');
-    return;
-  }
-
-  try {
-    // Configurar decodificadores para o DWV
-    // Estes precisam ser definidos antes de criar a aplicação DWV
-    dwv.image.decoderScripts = {
-      'jpeg2000': {
-        url: "https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/jpx.js",
-        md5sum: "sdfa8f9add2af20cd902a0251a6a38e4"
-      },
-      'jpeg-lossless': {
-        url: "https://cdn.jsdelivr.net/npm/jpeg-lossless-decoder@1.2.2/dist/jquery.decoderWorker.min.js",
-        md5sum: "dde95c4b4bfa440af912fe752674e622"
-      },
-      'jpeg-baseline': {
-        url: "https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/jpg.js",
-        md5sum: "22fe367218a5d8c6266e39e88edbe43c"
-      }
-    };
-    
-    console.log('Decodificadores configurados para DWV');
-    
-    // IMPORTANTE: Usar decodificação síncrona para evitar problemas de CSP com Web Workers
-    dwv.image.useAsyncDecoder = false;
-    
-    // Criar uma nova aplicação DWV
-    dwvApp = new dwv.App();
-    
-    // Inicializar DWV com configurações adequadas
-    dwvApp.init({
-      "dataViewConfigs": {
-        "*": [{
-          "divId": "dicom-image-container",
-          "orientation": "axial"
-        }]
-      },
-      "tools": {
-        "WindowLevel": {},
-        "ZoomAndPan": {},
-        "Scroll": {}
-      },
-      "viewOnFirstLoadItem": true
-    });
-      // Configurar evento de carga completa
-    dwvApp.addEventListener("load-end", function (event) {
-      console.log('DICOM imagem carregada com evento load-end');
-      applyDefaultWindowLevel();
-    });
-    
-    // Configurar presets padrão de janelamento
-    setupWindowLevelPresets();
-    
-    console.log('DWV inicializado com sucesso.');
-  } catch (error) {
-    console.error('Erro ao inicializar DWV:', error);
-  }
-}
 
 // Configurar presets de janelamento
 function setupWindowLevelPresets() {
@@ -386,9 +403,13 @@ function processDicomBuffer(buffer, outputElement, filename) {
     // Atualizar visão para usuário final
     updateDicomUserView(extractedData);
 
-    // Renderizar a imagem DICOM usando DWV
-    renderDicomViewer(buffer, extractedData);
-    
+    // Renderizar a imagem DICOM usando OHIF Viewer
+    if (typeof showDicomImage === 'function') {
+      showDicomImage(buffer, filename);
+    } else {
+      console.warn('OHIF Viewer não disponível, tentando DWV');
+      renderDicomViewer(buffer, extractedData);
+    }
     return extractedData;
   } catch (error) {
     console.error("Erro ao processar DICOM:", error);
@@ -403,130 +424,6 @@ function processDicomBuffer(buffer, outputElement, filename) {
     
     return null;
   }
-}
-
-// Função para renderizar a imagem DICOM usando DWV
-function renderDicomViewer(buffer, dicomData) {
-  try {
-    // Verificar se o visualizador DWV está disponível
-    if (typeof dwvApp === 'undefined') {
-      // Re-inicializar o DWV se não estiver disponível
-      console.log('Re-inicializando o DWV');
-      initializeDWV();
-      
-      if (typeof dwvApp === 'undefined') {
-        throw new Error('Não foi possível inicializar o visualizador DWV');
-      }
-    }
-    
-    // Limpar o visualizador
-    dwvApp.reset();
-    
-    // Configurar o div do container
-    const container = document.getElementById('dicom-image-container');
-    if (container) {
-      // Limpar o contêiner
-      container.innerHTML = '';
-      
-      // Aplicar estilos ao contêiner para exibir a imagem adequadamente
-      container.style.width = '100%';
-      container.style.height = '400px';
-      container.style.position = 'relative';
-      container.style.backgroundColor = '#000';
-      container.style.margin = '0 auto';
-    }
-    
-    // Adicionar ouvintes de eventos importantes
-    addDicomEventListeners(dicomData);
-    
-    // Criar um objeto Blob a partir do buffer
-    const blob = new Blob([buffer], {type: 'application/dicom'});
-    
-    // Criar um File object
-    const file = new File([blob], dicomData.fileName, {type: 'application/dicom'});
-    
-    // Carregar o arquivo DICOM
-    dwvApp.loadFiles([file]);
-    
-    console.log('Arquivo DICOM enviado para renderização');
-    
-    return true;
-  } catch (error) {
-    console.error('Erro ao renderizar imagem DICOM:', error);
-    
-    // Fallback para mostrar só metadados
-    updateDicomImageContainer(dicomData);
-    return false;
-  }
-}
-
-// Função para adicionar ouvintes de eventos ao DWV
-function addDicomEventListeners(dicomData) {
-  // Remover ouvintes existentes para evitar duplicação
-  dwvApp.removeEventListener("load-end");
-  
-  // Adicionar ouvinte para quando a imagem for carregada
-  dwvApp.addEventListener("load-end", function (event) {
-    console.log('DICOM imagem carregada com sucesso via evento load-end');
-    
-    const container = document.getElementById('dicom-image-container');
-    if (!container) return;
-    
-    // Aplicar janelamento adequado automaticamente
-    const image = dwvApp.getImage();
-    if (image) {
-      // Determinar a modalidade
-      const modality = dicomData.modality || 'DEFAULT';
-      
-      // Definir valores específicos para cada modalidade
-      let windowCenter, windowWidth;
-      
-      switch(modality) {
-        case 'CT':
-          windowCenter = 40;
-          windowWidth = 400;
-          break;
-        case 'MR':
-          windowCenter = 600;
-          windowWidth = 1200;
-          break;
-        case 'XR':
-          windowCenter = 2048;
-          windowWidth = 4096;
-          break;
-        default:
-          // Tentar usar valores da imagem
-          windowCenter = image.getMeta().WindowCenter;
-          windowWidth = image.getMeta().WindowWidth;
-          
-          // Se não houver valores específicos, calcular
-          if (!windowCenter || !windowWidth) {
-            const range = image.getRescaledDataRange();
-            windowWidth = (range.max - range.min) * 0.8;
-            windowCenter = range.min + (range.max - range.min) / 2;
-          }
-      }
-      
-      // Aplicar o janelamento
-      dwvApp.setWindowLevel(windowCenter, windowWidth);
-      console.log(`Janelamento aplicado: Centro=${windowCenter}, Largura=${windowWidth}`);
-      
-      // Ativar ferramenta de janelamento por padrão
-      dwvApp.setTool('WindowLevel');
-    }
-    
-    // Adicionar controles de imagem
-    addImageControls(container);
-  });
-  
-  // Adicionar ouvinte para erros
-  dwvApp.addEventListener("error", function (event) {
-    console.error('Erro ao carregar imagem DICOM:', event.error);
-    updateDicomImageContainer({
-      error: event.error.message || 'Erro ao renderizar imagem',
-      ...dicomData
-    });
-  });
 }
 
 // Função para atualizar o contêiner de imagem DICOM (fallback sem DWV)

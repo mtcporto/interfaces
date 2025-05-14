@@ -7,12 +7,11 @@
   <title>MVP de Interfaceamento Laboratorial Avançado</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="stylesheet" href="styles.css">
-  <!-- Decodificadores JPEG para DICOM (ordem importante)-->  <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/arithmetic_decoder.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/util.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/jpx.js"></script>
-  
-  <!-- DWV para visualização DICOM (fallback) -->
-  <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/dist/dwv.min.js"></script>
+  <!-- Removidos scripts DWV para visualização fallback -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/arithmetic_decoder.js"></script> -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/util.js"></script> -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/decoders/pdfjs/jpx.js"></script> -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/dwv@0.31.0/dist/dwv.min.js"></script> -->
     <!-- Cornerstone (OHIF) para visualização DICOM avançada -->
   <script src="https://unpkg.com/cornerstone-core@2.6.1/dist/cornerstone.min.js"></script>
   <script src="https://unpkg.com/cornerstone-math@0.1.10/dist/cornerstoneMath.min.js"></script>
@@ -541,7 +540,6 @@ L|1|N</textarea>
       MVP de Interfaceamento Laboratorial - Maio de 2025
     </footer>  </div>  <!-- Scripts de funcionamento -->
   <script src="js/utils.js"></script>
-  <script src="js/ohif-viewer.js"></script>
   <script src="js/dicom.js"></script>
   <script src="js/hl7.js"></script>
   <script src="js/astm.js"></script>
