@@ -15,7 +15,7 @@
     <!-- Cornerstone (OHIF) para visualização DICOM avançada -->
   <script src="https://unpkg.com/cornerstone-core@2.6.1/dist/cornerstone.min.js"></script>
   <script src="https://unpkg.com/cornerstone-math@0.1.10/dist/cornerstoneMath.min.js"></script>
-  <script src="https://unpkg.com/hammer.js@2.0.8/hammer.min.js"></script>
+  <script src="https://unpkg.com/hammerjs@2.0.8/hammer.min.js" crossorigin></script>
   <script src="https://unpkg.com/cornerstone-tools@6.0.8/dist/cornerstoneTools.min.js"></script>
   <script src="https://unpkg.com/dicom-parser@1.8.21/dist/dicomParser.min.js"></script>
   <script src="https://unpkg.com/cornerstone-wado-image-loader@4.13.2/dist/cornerstoneWADOImageLoader.bundle.min.js"></script>
@@ -281,7 +281,7 @@ L|1|N</textarea>
                 <i class="fas fa-info-circle info-icon"></i>
                 <div>Modalidade: <span id="dicom-modality">-</span></div>
               </div>
-                <div class="dicom-preview" id="dicom-image-container">
+                <div id="dicom-image-container">
                 <!-- Canvas para visualização DICOM será injetado aqui pelo DWV -->
               </div>
               

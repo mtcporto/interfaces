@@ -7,32 +7,71 @@
 function initOHIFViewer() {
   const element = document.getElementById('dicom-image-container');
   if (!element) return;
-  // Configure externals for WADO loader and tools
-  cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
-  cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
-  cornerstoneTools.external.cornerstone = cornerstone;
-  if (typeof window.Hammer !== 'undefined') {
-    cornerstoneTools.external.Hammer = window.Hammer;
-  } else {
-    console.warn('Hammer não encontrado em window');
-  }
-  // Initialize cornerstone WADO image loader web worker
-  if (cornerstoneWADOImageLoader.webWorkerManager && typeof cornerstoneWADOImageLoader.webWorkerManager.initialize === 'function') {
-    cornerstoneWADOImageLoader.webWorkerManager.initialize({
-      webWorkerPath: 'https://unpkg.com/cornerstone-wado-image-loader@4.13.2/dist/cornerstoneWADOImageLoaderWebWorker.min.js',
-      taskConfiguration: { decodeTask: { name: 'decodeTask' } }
-    });
-  }
-  // Enable Cornerstone on the container
+  
   try {
+    // Configure externals for WADO loader and tools
+    if (!cornerstoneWADOImageLoader.external.cornerstone) {
+      console.log('Configuring cornerstone WADO loader externals');
+      cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+      cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+    }
+    
+    if (typeof cornerstoneTools !== 'undefined') {
+      console.log('Configuring cornerstone tools...');
+      cornerstoneTools.external.cornerstone = cornerstone;
+      
+      if (typeof Hammer !== 'undefined') {
+        cornerstoneTools.external.Hammer = Hammer;
+        console.log('Hammer.js configurado com sucesso.');
+      } else {
+        console.error('Hammer.js não encontrado. Certifique-se de que o script está carregado corretamente.');
+      }
+    } else {
+      console.warn('cornerstoneTools não está disponível. Apenas visualização básica será possível.');
+    }
+    
+    // Initialize cornerstone WADO image loader web worker
+    if (cornerstoneWADOImageLoader.webWorkerManager && typeof cornerstoneWADOImageLoader.webWorkerManager.initialize === 'function') {
+      console.log('Initializing WADO web worker');
+      cornerstoneWADOImageLoader.webWorkerManager.initialize({
+        webWorkerPath: 'https://unpkg.com/cornerstone-wado-image-loader@4.13.2/dist/cornerstoneWADOImageLoaderWebWorker.min.js',
+        taskConfiguration: { decodeTask: { name: 'decodeTask' } }
+      });
+    }
+    
+    // Enable Cornerstone on the container
     cornerstone.enable(element);
+    console.log('Cornerstone enabled on container');
+    
+    // Initialize tools if available
+    if (typeof cornerstoneTools !== 'undefined') {
+      console.log('Initializing cornerstone tools');
+      cornerstoneTools.init();
+      setupDicomControlListeners();
+    }
   } catch (e) {
-    console.warn('Cornerstone enable failed:', e);
+    console.error('OHIF Viewer initialization failed:', e);
     return;
   }
-  // Initialize tools
-  cornerstoneTools.init({ showSVGCursors: true });
-  setupDicomControlListeners();
+}
+
+// Helper: Wait for non-zero container size before enabling Cornerstone
+function waitForNonZeroSize(element, callback, maxWaitMs = 2000) {
+  const start = Date.now();
+  function check() {
+    const w = element.offsetWidth;
+    const h = element.offsetHeight;
+    const display = getComputedStyle(element).display;
+    if (w > 0 && h > 0 && display !== 'none') {
+      callback();
+    } else if (Date.now() - start < maxWaitMs) {
+      setTimeout(check, 30);
+    } else {
+      console.warn('Timeout waiting for non-zero container size:', w, h, display);
+      callback(); // fallback: try anyway
+    }
+  }
+  check();
 }
 
 function showDicomWithOHIF(buffer, filename) {
@@ -40,19 +79,38 @@ function showDicomWithOHIF(buffer, filename) {
   if (!element) return;
   // clear container
   while (element.firstChild) element.removeChild(element.firstChild);
-  try {
-    cornerstone.enable(element);
-    cornerstone.resize(element);
-    const blob = new Blob([buffer], { type: 'application/dicom' });
-    const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(blob);
-    cornerstone.loadAndCacheImage(imageId).then(image => {
-      cornerstone.displayImage(element, image);
-      addToolsToDicomImage(element);
-      updateDicomControls(true);
-    }).catch(() => updateDicomControls(false));
-  } catch (e) {
-    console.warn('OHIF display skipped:', e);
-  }
+
+  // Wait for non-zero size before enabling Cornerstone and displaying image
+  waitForNonZeroSize(element, () => {
+    // Log container size before enabling Cornerstone
+    console.log('DICOM container size before enable:', element.offsetWidth, element.offsetHeight, getComputedStyle(element).display);
+    try {
+      // Make sure cornerstone is enabled on the element
+      cornerstone.enable(element);
+      cornerstone.resize(element);
+      console.log('DICOM buffer loaded, size:', buffer.byteLength);
+      const blob = new Blob([buffer], { type: 'application/dicom' });
+      const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(blob);
+      console.log('Generated imageId:', imageId);
+      // Load and display the image with detailed error handling
+      cornerstone.loadAndCacheImage(imageId)
+        .then(image => {
+          console.log('Element state before display:', cornerstone.getEnabledElement(element));
+          console.log('Image state before display:', image);
+          cornerstone.displayImage(element, image);
+          console.log('Successfully displayed DICOM image');
+          addToolsToDicomImage(element);
+          updateDicomControls(true);
+        })
+        .catch(error => {
+          console.error('Failed to load/display image:', error);
+          updateDicomControls(false);
+        });
+    } catch (e) {
+      console.warn('OHIF display skipped:', e);
+      updateDicomControls(false);
+    }
+  });
 }
 
 window.showDicomImage = showDicomWithOHIF;
@@ -68,15 +126,38 @@ function setupDicomControlListeners() {
 }
 
 function addToolsToDicomImage(element) {
-  // Register and activate basic tools
-  cornerstoneTools.addTool(cornerstoneTools.WwwcTool);
-  cornerstoneTools.addTool(cornerstoneTools.PanTool);
-  cornerstoneTools.addTool(cornerstoneTools.ZoomTool);
-  cornerstoneTools.addTool(cornerstoneTools.StackScrollTool);
-  cornerstoneTools.setToolActive('Wwwc', { mouseButtonMask: 1 });
-  cornerstoneTools.setToolActive('Pan', { mouseButtonMask: 2 });
-  cornerstoneTools.setToolActive('Zoom', { mouseButtonMask: 4 });
-  cornerstoneTools.setToolActive('StackScroll', { mouseButtonMask: 1 });
+  if (typeof cornerstoneTools === 'undefined') {
+    console.warn('cornerstoneTools não disponível - ferramentas não serão adicionadas');
+    return;
+  }
+
+  try {
+    console.log('Adding tools to DICOM image');
+    
+    // Check which API version we're dealing with
+    if (cornerstoneTools.WwwcTool) {
+      // Newer version API
+      cornerstoneTools.addTool(cornerstoneTools.WwwcTool);
+      cornerstoneTools.addTool(cornerstoneTools.PanTool);
+      cornerstoneTools.addTool(cornerstoneTools.ZoomTool);
+      cornerstoneTools.addTool(cornerstoneTools.StackScrollTool);
+      
+      cornerstoneTools.setToolActive('Wwwc', { mouseButtonMask: 1 });
+      cornerstoneTools.setToolActive('Pan', { mouseButtonMask: 2 });
+      cornerstoneTools.setToolActive('Zoom', { mouseButtonMask: 4 });
+    } else if (cornerstoneTools.wwwc) {
+      // Older version API
+      cornerstoneTools.wwwc.activate(element, 1);
+      cornerstoneTools.pan.activate(element, 2);
+      cornerstoneTools.zoom.activate(element, 4);
+    } else {
+      console.warn('Could not find expected tools in cornerstone-tools library');
+    }
+    
+    console.log('Successfully initialized tools');
+  } catch (error) {
+    console.error('Error initializing cornerstone tools:', error);
+  }
 }
 
 function updateDicomControls(isLoaded) {
@@ -186,15 +267,22 @@ function loadLocalDicomFile(filename) {
     outputElement.className = '';
   }
   
+  console.log('Starting DICOM file fetch...', filepath);
+  
   // Buscar o arquivo DICOM
   fetch(filepath)
     .then(response => {
+      console.log('DICOM file fetch response:', response.status);
       if (!response.ok) {
         throw new Error(`Erro ao carregar arquivo: ${response.status} ${response.statusText}`);
       }
       return response.arrayBuffer();
     })
     .then(buffer => {
+      console.log('DICOM buffer loaded, size:', buffer.byteLength);
+      // First show the image
+      // showDicomWithOHIF(buffer, filename); // REMOVE THIS LINE to avoid double display
+      // Then process metadata (which will call showDicomWithOHIF via processDicomBuffer)
       processDicomBuffer(buffer, outputElement, filename);
     })
     .catch(error => {
