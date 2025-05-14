@@ -2,56 +2,50 @@
  * MVP de Interfaceamento Laboratorial - Funcionalidades DICOM
  */
 
+let cornerstoneToolsAndListenersInitialized = false;
+
 // OHIF Viewer Integration (migrated from ohif-viewer.js)
 
 function initOHIFViewer() {
   const element = document.getElementById('dicom-image-container');
-  if (!element) return;
-  
+  // if (!element) return; // Keep if other init logic depends on it, but not for enable
+
   try {
     // Configure externals for WADO loader and tools
-    if (!cornerstoneWADOImageLoader.external.cornerstone) {
+    if (cornerstoneWADOImageLoader && !cornerstoneWADOImageLoader.external.cornerstone) {
       console.log('Configuring cornerstone WADO loader externals');
       cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
       cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
     }
     
     if (typeof cornerstoneTools !== 'undefined') {
-      console.log('Configuring cornerstone tools...');
+      console.log('Configuring cornerstone tools externals...');
       cornerstoneTools.external.cornerstone = cornerstone;
       
       if (typeof Hammer !== 'undefined') {
         cornerstoneTools.external.Hammer = Hammer;
-        console.log('Hammer.js configurado com sucesso.');
+        console.log('Hammer.js external configured successfully.');
       } else {
-        console.error('Hammer.js não encontrado. Certifique-se de que o script está carregado corretamente.');
+        console.error('Hammer.js not found for cornerstoneTools external. Interaction might be limited.');
       }
     } else {
-      console.warn('cornerstoneTools não está disponível. Apenas visualização básica será possível.');
+      console.warn('cornerstoneTools not available. Full initialization will be skipped.');
     }
     
     // Initialize cornerstone WADO image loader web worker
-    if (cornerstoneWADOImageLoader.webWorkerManager && typeof cornerstoneWADOImageLoader.webWorkerManager.initialize === 'function') {
+    if (cornerstoneWADOImageLoader && cornerstoneWADOImageLoader.webWorkerManager && typeof cornerstoneWADOImageLoader.webWorkerManager.initialize === 'function') {
       console.log('Initializing WADO web worker');
       cornerstoneWADOImageLoader.webWorkerManager.initialize({
         webWorkerPath: 'https://unpkg.com/cornerstone-wado-image-loader@4.13.2/dist/cornerstoneWADOImageLoaderWebWorker.min.js',
         taskConfiguration: { decodeTask: { name: 'decodeTask' } }
       });
     }
-    
-    // Enable Cornerstone on the container
-    cornerstone.enable(element);
-    console.log('Cornerstone enabled on container');
-    
-    // Initialize tools if available
-    if (typeof cornerstoneTools !== 'undefined') {
-      console.log('Initializing cornerstone tools');
-      cornerstoneTools.init();
-      setupDicomControlListeners();
-    }
+    // DO NOT call cornerstone.enable(element) or cornerstoneTools.init() here.
+    // DO NOT call setupDicomControlListeners() here.
+    console.log('OHIF Viewer core externals and web worker configured.');
+
   } catch (e) {
-    console.error('OHIF Viewer initialization failed:', e);
-    return;
+    console.error('OHIF Viewer core initialization failed:', e);
   }
 }
 
@@ -75,30 +69,79 @@ function waitForNonZeroSize(element, callback, maxWaitMs = 2000) {
 }
 
 function showDicomWithOHIF(buffer, filename) {
-  const element = document.getElementById('dicom-image-container');
-  if (!element) return;
-  // clear container
-  while (element.firstChild) element.removeChild(element.firstChild);
+  // Always activate the DICOM tab content and deactivate others
+  const dicomTab = document.getElementById('dicom-user-tab');
+  if (dicomTab) {
+    // Deactivate all tab-content
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+    dicomTab.classList.add('active');
+  }
 
-  // Wait for non-zero size before enabling Cornerstone and displaying image
+  const element = document.getElementById('dicom-image-container');
+  if (!element) {
+    console.error('DICOM image container not found.');
+    return;
+  }
+  // Clear container moved into waitForNonZeroSize to ensure it's done before enable
+
   waitForNonZeroSize(element, () => {
-    // Log container size before enabling Cornerstone
-    console.log('DICOM container size before enable:', element.offsetWidth, element.offsetHeight, getComputedStyle(element).display);
+    console.log('DICOM container is visible and sized:', element.offsetWidth, element.offsetHeight, getComputedStyle(element).display);
     try {
-      // Make sure cornerstone is enabled on the element
-      cornerstone.enable(element);
-      cornerstone.resize(element);
+      // Clear previous canvas if any, before enabling/re-enabling
+      while (element.firstChild) element.removeChild(element.firstChild);
+
+      cornerstone.enable(element); // Enable here. Safe to call multiple times.
+      console.log('Cornerstone enabled on container (or re-confirmed).');
+      
+      if (!cornerstoneToolsAndListenersInitialized) {
+        if (typeof cornerstoneTools !== 'undefined') {
+          console.log('Initializing cornerstone tools (first time).');
+          cornerstoneTools.init(); 
+        } else {
+          console.warn('cornerstoneTools not available, skipping init.');
+        }
+        setupDicomControlListeners(); // Call once
+        cornerstoneToolsAndListenersInitialized = true;
+        console.log('Cornerstone tools and listeners initialized.');
+      }
+      
+      cornerstone.resize(element); // Resize after enable and before load/display
+      console.log('Resized container after enable.');
+
       console.log('DICOM buffer loaded, size:', buffer.byteLength);
       const blob = new Blob([buffer], { type: 'application/dicom' });
       const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(blob);
       console.log('Generated imageId:', imageId);
-      // Load and display the image with detailed error handling
+
       cornerstone.loadAndCacheImage(imageId)
         .then(image => {
+          console.log('Image loaded successfully. Image details:', image);
           console.log('Element state before display:', cornerstone.getEnabledElement(element));
-          console.log('Image state before display:', image);
+          
           cornerstone.displayImage(element, image);
           console.log('Successfully displayed DICOM image');
+
+          cornerstone.resize(element); // Resize again after display to ensure canvas fits
+          console.log('Resized container after display.');
+
+          let viewport = cornerstone.getViewport(element);
+          if (!viewport) {
+            viewport = cornerstone.getDefaultViewportForImage(element, image);
+            console.log('Applied default viewport for image:', viewport);
+          } else {
+            console.log('Existing viewport before adjustment:', viewport);
+            viewport.voi.windowWidth = image.windowWidth || viewport.voi.windowWidth || 400;
+            viewport.voi.windowCenter = image.windowCenter || viewport.voi.windowCenter || 40;
+            if (!viewport.scale || viewport.scale <= 0) {
+                const fitScaleResult = cornerstone.fitToWindow(element);
+                viewport.scale = fitScaleResult && fitScaleResult.scale > 0 ? fitScaleResult.scale : 1;
+                console.log('Viewport scale reset to fit/default:', viewport.scale);
+            }
+            console.log('Adjusted viewport:', viewport);
+          }
+          cornerstone.setViewport(element, viewport);
+          console.log('Final viewport set.');
+
           addToolsToDicomImage(element);
           updateDicomControls(true);
         })
@@ -107,7 +150,7 @@ function showDicomWithOHIF(buffer, filename) {
           updateDicomControls(false);
         });
     } catch (e) {
-      console.warn('OHIF display skipped:', e);
+      console.error('Error in showDicomWithOHIF after waitForNonZeroSize:', e);
       updateDicomControls(false);
     }
   });
